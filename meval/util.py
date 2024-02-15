@@ -5,14 +5,18 @@ class _hook:
 	def __init__(self, fn=None, *args, **kwargs):
 		super().__init__()
 		self.fn = fn
+		self.name = None if fn is None else fn.__name__
 		self._got_called = False
 		self.args, self.kwargs = args, kwargs
 
 	def __call__(self, fn):
 		self._got_called = True
+		self.name = self.fn or fn.__name__
 		self.fn = fn
 
 	def package(self, app):
+		assert self.name is not None
+		self.name = f'/{self.name}'
 		return self.fn.__get__(app, type(app))
 
 
@@ -38,9 +42,9 @@ class App(fig.Configurable):
 			if isinstance(attr, _hook):
 				fn = attr.package(self)
 				if isinstance(attr, post):
-					app.post(fn, *attr.args, **attr.kwargs)
+					app.post(attr.name, *attr.args, **attr.kwargs)(fn)
 				elif isinstance(attr, get):
-					app.get(fn, *attr.args, **attr.kwargs)
+					app.get(attr.name, *attr.args, **attr.kwargs)(fn)
 				else:
 					raise TypeError(f"Unknown hook type: {type(attr)}")
 

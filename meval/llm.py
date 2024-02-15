@@ -3,54 +3,55 @@ from .imports import *
 
 from .util import App, post, get
 
+
 # from tensorflow.keras.models import load_model  # For loading Keras models
 
-app = FastAPI()
-
-# Global variable to hold the model
-model = None
-
-
-class ModelPath(BaseModel):
-    model_path: str
-
-
-class Data(BaseModel):
-    data: list  # This should be tailored to the expected input format for your model
-
-
-@app.post("/load-model")
-def load_model(model_path: ModelPath):
-    global model
-    try:
-        # For scikit-learn models
-        model = joblib.load(model_path.model_path)
-
-        # For Keras models
-        # model = load_model(model_path.model_path)
-
-        return {"message": "Model loaded successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/run-model")
-def run_model(data: Data):
-    global model
-    if model is None:
-        raise HTTPException(status_code=400, detail="No model is loaded")
-
-    try:
-        # Prediction logic here depends on the type of model and the data format
-        # For example, for a scikit-learn classifier:
-        prediction = model.predict(data.data)
-
-        # For a Keras model, ensure data is preprocessed correctly
-        # prediction = model.predict(preprocessed_data)
-
-        return {"prediction": prediction.tolist()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# app = FastAPI()
+#
+# # Global variable to hold the model
+# model = None
+#
+#
+# class ModelPath(BaseModel):
+#     model_path: str
+#
+#
+# class Data(BaseModel):
+#     data: list  # This should be tailored to the expected input format for your model
+#
+#
+# @app.post("/load-model")
+# def load_model(model_path: ModelPath):
+#     global model
+#     try:
+#         # For scikit-learn models
+#         model = joblib.load(model_path.model_path)
+#
+#         # For Keras models
+#         # model = load_model(model_path.model_path)
+#
+#         return {"message": "Model loaded successfully"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+#
+#
+# @app.post("/run-model")
+# def run_model(data: Data):
+#     global model
+#     if model is None:
+#         raise HTTPException(status_code=400, detail="No model is loaded")
+#
+#     try:
+#         # Prediction logic here depends on the type of model and the data format
+#         # For example, for a scikit-learn classifier:
+#         prediction = model.predict(data.data)
+#
+#         # For a Keras model, ensure data is preprocessed correctly
+#         # prediction = model.predict(preprocessed_data)
+#
+#         return {"prediction": prediction.tolist()}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 @fig.component('llm-app')
@@ -66,21 +67,17 @@ class LLM_App(App):
         self.model = None
         self.tokenizer = None
 
-    class nullop(BaseModel):
-        nothing: str = None
     @get
-    async def ping(self, payload: nullop):
+    async def ping(self):
         return 'pong'
 
     class loader(BaseModel):
-        model_id: str = None
-        model_args: dict = None
+        name: str = None
+        m_args: dict = None
         tokenizer_args: dict = None
     @post
     async def load(self, payload: loader):
-        return {'message': 'hello'}
-
-        model_id = payload.model_id or self.model_id
+        model_id = payload.name or self.model_id
 
         status = 'loaded' if self.model is None else 'null'
 
@@ -101,11 +98,6 @@ class LLM_App(App):
 
 @fig.script('llm')
 def start_llm(cfg: fig.Configuration):
-    # app = FastAPI()
-    # @app.get("/")
-    # async def root():
-    #     return {"message": "Hello World"}
-    # uvicorn.run(app, host='localhost', port=8000)
 
     cfg.push('app._type', 'llm-app', overwrite=False, silent=True)
     app = cfg.pull('app')
