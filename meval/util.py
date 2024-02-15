@@ -1,6 +1,27 @@
 from .imports import *
 
 
+
+def repo_root():
+	return Path(__file__).parent.parent
+
+
+
+def config_model_root():
+	return repo_root() / 'config' / 'models'
+
+
+
+def config_data_root():
+	return repo_root() / 'config' / 'data'
+
+
+
+def data_root():
+	return repo_root() / 'out-data'
+
+
+
 class _hook:
 	def __init__(self, fn=None, *args, **kwargs):
 		super().__init__()

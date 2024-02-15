@@ -1,21 +1,24 @@
 
 _meta.script_name: llm
 
-4bit: yes
-8bit: no
-device: cuda
-
 app._type: llm-app
 
-model-id: microsoft/phi-2
 
-model_args:
-  trust_remote_code: yes
-  device_map: <>device
-  load_in_4bit: <>4bit
-  load_in_8bit: <>8bit
 
-tokenizer_args:
-  trust_remote_code: yes
-  device_map: <>device
+
+#4bit: yes
+#8bit: no
+#device: cuda
+#
+#model-id: microsoft/phi-2
+#
+#model_args:
+#  trust_remote_code: yes
+#  device_map: <>device
+#  load_in_4bit: <>4bit
+#  load_in_8bit: <>8bit
+#
+#tokenizer_args:
+#  trust_remote_code: yes
+#  device_map: <>device
 
