@@ -1,0 +1,22 @@
+
+model-id: microsoft/phi-2
+
+
+model_args:
+  trust_remote_code: yes
+  device_map: cuda
+  load_in_4bit: no
+  load_in_8bit: no
+
+
+
+
+
+
+
+
+
+
+
+
+

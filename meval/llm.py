@@ -71,12 +71,12 @@ class LLM_App(App):
     async def ping(self):
         return 'pong'
 
-    class loader(BaseModel):
+    class _loader(BaseModel):
         name: str = None
         m_args: dict = None
         tokenizer_args: dict = None
     @post
-    async def load(self, payload: loader):
+    async def load(self, payload: _loader):
         model_id = payload.name or self.model_id
 
         status = 'loaded' if self.model is None else 'null'
@@ -93,6 +93,19 @@ class LLM_App(App):
             raise ValueError(f"Model already loaded: {self.model_id}")
 
         return {'model_id': model_id, 'status': status}
+
+
+    @get
+    async def autocomplete(self, text: str, max_length: int = 50, num_return_sequences: int = 1):
+        if self.model is None:
+            raise ValueError("Model not loaded")
+
+        input_ids = self.tokenizer.encode(text, return_tensors='pt')
+        input_ids = input_ids.to(self.model.device)
+
+        output = self.model.generate(input_ids, max_length=max_length, num_return_sequences=num_return_sequences)
+
+        return [self.tokenizer.decode(o, skip_special_tokens=True) for o in output]
 
 
 
