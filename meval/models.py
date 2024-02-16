@@ -3,21 +3,17 @@ from .imports import *
 
 
 class Runner(fig.Configurable):
-	_is_loaded = False
+	model = None
+	@property
 	def is_loaded(self):
-		return self._is_loaded
+		return self.model is not None
 
 
 	def load(self, *args, **kwargs):
-		if self.is_loaded():
+		if self.is_loaded:
 			return
-		self._is_loaded = True
 		self._load(*args, **kwargs)
 		return self
-
-
-	# def unload(self, meta):
-	# 	raise NotImplementedError
 
 
 	def _load(self, *args, **kwargs):
@@ -37,9 +33,6 @@ class DefaultRunner(Runner):
 
 
 	def _load(self):
-		if self.model is not None:
-			return
-
 		model_id = self.model_id
 		model_args = self.model_args
 		tokenizer_args = self.tokenizer_args
@@ -47,8 +40,8 @@ class DefaultRunner(Runner):
 		model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.bfloat16, **model_args)
 		tokenizer = AutoTokenizer.from_pretrained(model_id, **tokenizer_args)
 
-		self.model = model
 		self.tokenizer = tokenizer
+		self.model = model
 
 
 

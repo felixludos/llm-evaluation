@@ -12,3 +12,4 @@ fastapi
 gradio
 uvicorn
 psutil
+pynvml
