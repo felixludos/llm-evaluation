@@ -1,9 +1,16 @@
 
-_meta.script_name: llm
+_meta.script_name: start-server
 
-app._type: llm-app
+app._type: manager-server
+
+manager._type: job-manager
+
+config_root._type: default-config-root
 
 
+
+
+#root: test-job-root
 
 
 #4bit: yes

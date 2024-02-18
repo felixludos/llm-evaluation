@@ -2,7 +2,7 @@ import time
 
 from .imports import *
 
-from .iteration import Job, ResourceAware, ExpectedResources, ExpectedIterations
+from .jobs import Job, ResourceAware, ExpectedResources, ExpectedIterations
 
 
 
@@ -47,13 +47,13 @@ def test_heavy_job():
 	prs = []
 
 	while not job.is_done and len(prs) < 20:
-		progress = job.progress()
+		progress = job.status()
 		prs.append(progress)
 		time.sleep(5)
 
 	job.complete()
 
-	progress = job.progress()
+	progress = job.status()
 	print(progress)
 
 	print('done')
@@ -74,13 +74,13 @@ def test_iterative_job():
 	prs = []
 
 	while not job.is_done and len(prs) < 20:
-		progress = job.progress()
+		progress = job.status()
 		prs.append(progress)
 		time.sleep(2)
 
 	job.complete()
 
-	progress = job.progress()
+	progress = job.status()
 	print(progress)
 
 	print('done')

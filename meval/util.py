@@ -6,6 +6,10 @@ def repo_root():
 	return Path(__file__).parent.parent
 
 
+@fig.autocomponent('default-config-root')
+def config_job_root():
+	return repo_root() / 'jobs'
+
 
 def config_model_root():
 	return repo_root() / 'config' / 'models'

@@ -6,8 +6,16 @@ from threading import Thread
 
 
 class Job:
+	name: str = None
 	_task: Thread = None
 	_is_done: bool = False
+
+
+	def generate_name(self, ID: int, timestamp: datetime):
+		if self.name is None:
+			self.name = f'job{ID}_{timestamp.strftime("%Y%m%d-%H%M%S")}'
+		return self.name
+
 
 	def reset(self):
 		self._is_done = False
@@ -40,7 +48,7 @@ class Job:
 		return self._task is not None and self._task.is_alive()
 
 
-	def progress(self):
+	def status(self):
 		return {'is_done': self.is_done, 'is_running': self.is_running}
 
 
@@ -76,8 +84,8 @@ class Timestamped(Job):
 		self.finish_time = datetime.now()
 
 
-	def progress(self):
-		progress = super().progress()
+	def status(self):
+		progress = super().status()
 		progress['current_time'] = datetime.now()
 		progress['start_time'] = self.start_time
 		progress['finish_time'] = self.finish_time
@@ -157,8 +165,8 @@ class ResourceAware(Timestamped):
 		self.end_snapshot = None
 
 
-	def progress(self, fast: bool = False):
-		progress = super().progress()
+	def status(self, fast: bool = False):
+		progress = super().status()
 
 		current = self.resource_snapshot(fast=fast)
 
@@ -275,8 +283,8 @@ class IterativeJob(Job):
 		self._run_iterations = None
 
 
-	def progress(self):
-		progress = super().progress()
+	def status(self):
+		progress = super().status()
 		progress['num_iterations'] = self.num_iterations
 		return progress
 
@@ -299,8 +307,8 @@ class TimedIterative(Timestamped, IterativeJob):
 		self.init_time = None
 
 
-	def progress(self):
-		progress = super().progress()
+	def status(self):
+		progress = super().status()
 		progress['init_time'] = self.init_time
 
 		if self.init_time is not None:
@@ -314,8 +322,8 @@ class TimedIterative(Timestamped, IterativeJob):
 class ExpectedTiming(Timestamped):
 	expected_duration: timedelta = None
 
-	def progress(self):
-		progress = super().progress()
+	def status(self):
+		progress = super().status()
 		if self.expected_duration is not None:
 			if self.start_time is not None:
 				progress['expected_finish_time'] = self.start_time + self.expected_duration
@@ -344,8 +352,8 @@ class ExpectedResources(ResourceAware, ExpectedTiming):
 	expected_gpu_usage: float = 0
 
 
-	def progress(self, fast: bool = False):
-		progress = super().progress(fast=fast)
+	def status(self, fast: bool = False):
+		progress = super().status(fast=fast)
 
 		if self.expected_ram_usage > 0 and 'ram_used' in progress:
 			progress['expected_ram_usage'] = self.expected_ram_usage
@@ -365,8 +373,8 @@ class ExpectedIterations(TimedIterative):
 	expected_num_iterations: int = None
 
 
-	def progress(self):
-		progress = super().progress()
+	def status(self):
+		progress = super().status()
 		if self.expected_num_iterations is not None:
 			progress['expected_num_iterations'] = self.expected_num_iterations
 			progress['expected_num_remaining'] = self.expected_num_iterations - self.num_iterations
@@ -379,6 +387,12 @@ class ExpectedIterations(TimedIterative):
 				progress['expected_remaining_time_from_rate'] = progress['expected_finish_time_from_rate'] - current
 
 		return progress
+
+
+class PersistentJob(Job):
+	def persist(self, root: Path):
+		raise NotImplementedError
+
 
 
 
