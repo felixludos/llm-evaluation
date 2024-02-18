@@ -389,8 +389,12 @@ class ExpectedIterations(TimedIterative):
 		return progress
 
 
+
 class PersistentJob(Job):
 	def persist(self, root: Path):
+
+		
+
 		raise NotImplementedError
 
 

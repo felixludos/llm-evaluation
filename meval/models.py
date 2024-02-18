@@ -21,7 +21,7 @@ class Runner(fig.Configurable):
 
 
 
-@fig.component('default')
+@fig.component('default-huggingface')
 class DefaultRunner(Runner):
 	def __init__(self, model_id: str, model_args=None, tokenizer_args=None, **kwargs):
 		super().__init__(**kwargs)

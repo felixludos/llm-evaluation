@@ -1,3 +1,6 @@
+_type: loader
+
+runner._type: default-huggingface
 
 model-id: microsoft/phi-2
 
@@ -16,8 +19,6 @@ tokenizer-args:
   trust_remote_code: yes
   device_map: <>device
 
-
-runner._type: default
 
 
 
