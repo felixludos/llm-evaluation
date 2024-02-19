@@ -20,16 +20,16 @@ class Manager(fig.Configurable):
 
 
 	@dataclass
-	class _JobFrame:
+	class _TaskFrame:
 		ID: int
 		name: str
 		timestamp: datetime
 		config: fig.Configuration
-		job: Task
+		task: Task
 
 
 	_job_id_file_name = 'job_list.csv'
-	def _generate_job_id(self):
+	def _generate_task_id(self):
 		# with path.open('a') as f:
 		# 	writer = csv.writer(f)
 		# 	writer.writerow([name, timestamp])
@@ -42,17 +42,17 @@ class Manager(fig.Configurable):
 		return val
 
 
-	def _create_job(self, cfg: fig.Configuration):
-		job = cfg.process()
-		if not isinstance(job, Task):
+	def _create_task(self, cfg: fig.Configuration):
+		task = cfg.process()
+		if not isinstance(task, Task):
 			# print(f'Job is not a Job: {job}')
-			raise ValueError(f'Job is not a Job: {job}')
+			raise ValueError(f'Job is not a Job: {task}')
 
-		ID = self._generate_job_id()
+		ID = self._generate_task_id()
 		now = datetime.now()
-		name = job.generate_name(ID, now)
+		name = task.generate_name(ID, now)
 
-		frame = self._JobFrame(ID=ID, name=name, timestamp=now, config=cfg, job=job)
+		frame = self._TaskFrame(ID=ID, name=name, timestamp=now, config=cfg, task=task)
 
 		self.tasks.append(frame)
 		return frame
@@ -63,11 +63,11 @@ class Manager(fig.Configurable):
 			cfg = fig.create_config(cfg, *other, **params)
 		assert isinstance(cfg, fig.Configuration), f'Invalid config type: {cfg} ({type(cfg)})'
 
-		frame = self._create_job(cfg)
+		frame = self._create_task(cfg)
 		return frame.ID
 
 
-	def _find_job_frame(self, ident: int | str):
+	def _find_frame(self, ident: int | str):
 		if isinstance(ident, int):
 			matches = [j for j in self.tasks if j.ID == ident]
 		elif isinstance(ident, str):
@@ -76,7 +76,7 @@ class Manager(fig.Configurable):
 			except ValueError:
 				matches = [j for j in self.tasks if j.name == ident]
 			else:
-				return self._find_job_frame(ident)
+				return self._find_frame(ident)
 		else:
 			raise UnknownJobType(f'Unknown job ident type: {ident} ({type(ident)})')
 
@@ -89,33 +89,33 @@ class Manager(fig.Configurable):
 		return matches[0]
 
 
-	def start_job(self, ident: int | str):
-		frame = self._find_job_frame(ident)
-		out = frame.job.start()
+	def start_task(self, ident: int | str):
+		frame = self._find_frame(ident)
+		out = frame.task.start()
 		if out is not None:
 			return out
 		return frame.ID
 
 
-	def terminate_job(self, ident: int | str):
-		frame = self._find_job_frame(ident)
-		out = frame.job.terminate()
+	def terminate_task(self, ident: int | str):
+		frame = self._find_frame(ident)
+		out = frame.task.terminate()
 		if out is not None:
 			return out
 		return frame.ID
 
 
-	def complete_job(self, ident: int | str):
-		frame = self._find_job_frame(ident)
-		out = frame.job.complete()
+	def complete_task(self, ident: int | str):
+		frame = self._find_frame(ident)
+		out = frame.task.complete()
 		if out is not None:
 			return out
 		return frame.ID
 
 
-	def job_status(self, ident: int | str):
-		frame = self._find_job_frame(ident)
-		return frame.job.status()
+	def task_status(self, ident: int | str):
+		frame = self._find_frame(ident)
+		return frame.task.status()
 
 
 	def report(self, limit: int = 5, status: bool = False):
@@ -124,14 +124,14 @@ class Manager(fig.Configurable):
 		report = [{'id': frame.ID, 'name': frame.name, 'timestamp': frame.timestamp} for frame in frames]
 		if status:
 			for frame, info in zip(frames, report):
-				info['status'] = frame.job.status()
+				info['status'] = frame.task.status()
 		return report
 
 
 	def chain_tasks(self, prev_link: int | str, next_link: int | str):
-		prev_frame = self._find_job_frame(prev_link)
-		next_frame = self._find_job_frame(next_link)
-		next_frame.job.chain(prev_frame.job)
+		prev_frame = self._find_frame(prev_link)
+		next_frame = self._find_frame(next_link)
+		next_frame.task.chain(prev_frame.task)
 		return next_frame
 
 

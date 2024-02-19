@@ -31,7 +31,7 @@ class Manager_Server(App):
 
 	@get
 	async def start(self, id: str | int):
-		out = self.manager.start_job(id)
+		out = self.manager.start_task(id)
 		return out
 
 
@@ -43,19 +43,19 @@ class Manager_Server(App):
 
 	@get
 	async def status(self, id: str | int):
-		out = self.manager.job_status(id)
+		out = self.manager.task_status(id)
 		return out
 
 
 	@get
 	async def terminate(self, id: str | int):
-		out = self.manager.terminate_job(id)
+		out = self.manager.terminate_task(id)
 		return out
 
 
 	@get
 	async def complete(self, id: str | int):
-		out = self.manager.complete_job(id)
+		out = self.manager.complete_task(id)
 		return out
 
 
