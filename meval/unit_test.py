@@ -2,7 +2,7 @@ import time
 
 from .imports import *
 
-from .jobs import Job, ResourceAware, ExpectedResources, ExpectedIterations
+from .tasks import Task, ResourceAware, ExpectedResources, ExpectedIterations
 
 
 

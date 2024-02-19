@@ -5,7 +5,7 @@ from .imports import *
 from threading import Thread
 
 
-class Job:
+class Task:
 	name: str = None
 	_task: Thread = None
 	_is_done: bool = False
@@ -67,7 +67,7 @@ class Job:
 
 
 
-class Timestamped(Job):
+class Timestamped(Task):
 	start_time: datetime = None
 	finish_time: datetime = None
 
@@ -208,7 +208,7 @@ class ResourceAware(Timestamped):
 
 
 
-class IterativeJob(Job):
+class IterativeTask(Task):
 	_stream = None
 	_kill_flag: bool = False
 	_run_iterations: Optional[int] = None
@@ -294,7 +294,7 @@ class IterativeJob(Job):
 
 
 
-class TimedIterative(Timestamped, IterativeJob):
+class TimedIterative(Timestamped, IterativeTask):
 	init_time = None
 	def initialize(self):
 		if self.init_time is None:
@@ -390,10 +390,10 @@ class ExpectedIterations(TimedIterative):
 
 
 
-class PersistentJob(Job):
+class PersistentTask(Task):
 	def persist(self, root: Path):
 
-		
+
 
 		raise NotImplementedError
 

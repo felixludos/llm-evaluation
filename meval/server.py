@@ -1,6 +1,6 @@
 from .imports import *
 
-from .jobs import Job, ResourceAware, ExpectedResources, ExpectedIterations
+from .tasks import Task, ResourceAware, ExpectedResources, ExpectedIterations
 from .util import App, post, get, config_data_root, data_root
 # from .models import Runner
 

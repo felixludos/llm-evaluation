@@ -1,6 +1,6 @@
 from .imports import *
 
-from .jobs import Job, ResourceAware, ExpectedResources, ExpectedIterations
+from .tasks import Task, ResourceAware, ExpectedResources, ExpectedIterations
 from .errors import JobNotFound, UnknownJobType
 from .util import data_root
 
@@ -25,7 +25,7 @@ class Manager(fig.Configurable):
 		name: str
 		timestamp: datetime
 		config: fig.Configuration
-		job: Job
+		job: Task
 
 
 	_job_id_file_name = 'job_list.csv'
@@ -44,7 +44,7 @@ class Manager(fig.Configurable):
 
 	def _create_job(self, cfg: fig.Configuration):
 		job = cfg.process()
-		if not isinstance(job, Job):
+		if not isinstance(job, Task):
 			# print(f'Job is not a Job: {job}')
 			raise ValueError(f'Job is not a Job: {job}')
 
