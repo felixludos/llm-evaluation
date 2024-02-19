@@ -11,6 +11,7 @@ class Manager_Server(App):
 	def __init__(self, manager, **kwargs):
 		super().__init__(**kwargs)
 		self.manager = manager
+		self.manager.append_description({'server': {'host': self.host, 'port': self.port}})
 
 
 	@get
@@ -24,14 +25,29 @@ class Manager_Server(App):
 
 
 	@get
-	async def create(self, id: str, **params):
-		out = self.manager.create_job(id, **params)
+	async def create(self, name: str):
+		out = self.manager.create_task(name)
 		return out
 
 
+	class _TaskConfig(BaseModel):
+		id: str = None
+		configs: list = None
+		params: dict = None
 	@get
-	async def start(self, id: str | int):
-		out = self.manager.start_task(id)
+	async def create_custom(self, info: _TaskConfig):
+
+		configs = info.configs if info.configs is not None else []
+		if info.id is not None:
+			configs = [info.id] + configs
+		params = info.params if info.params is not None else {}
+
+		return self.manager.create_task(*configs, **params)
+
+
+	@get
+	async def start(self, code: str | int):
+		out = self.manager.start_task(code)
 		return out
 
 
@@ -42,20 +58,20 @@ class Manager_Server(App):
 
 
 	@get
-	async def status(self, id: str | int):
-		out = self.manager.task_status(id)
+	async def status(self, code: str | int):
+		out = self.manager.task_status(code)
 		return out
 
 
 	@get
-	async def terminate(self, id: str | int):
-		out = self.manager.terminate_task(id)
+	async def terminate(self, code: str | int):
+		out = self.manager.terminate_task(code)
 		return out
 
 
 	@get
-	async def complete(self, id: str | int):
-		out = self.manager.complete_task(id)
+	async def complete(self, code: str | int):
+		out = self.manager.complete_task(code)
 		return out
 
 

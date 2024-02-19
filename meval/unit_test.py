@@ -10,7 +10,7 @@ class DemoLoader(ExpectedResources):
 	tokenizer = None
 	model = None
 
-	def _run_job(self):
+	def _run(self):
 		torch.set_default_device("cuda")
 		self.tokenizer = AutoTokenizer.from_pretrained("microsoft/phi-2", trust_remote_code=True)
 

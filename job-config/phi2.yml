@@ -1,23 +1,23 @@
-_type: loader
 
+task._type: loader
 
 
 runner._type: default-huggingface
 
-model-id: microsoft/phi-2
+model_id: microsoft/phi-2
 
 device: cuda
 
 4bit: no
 8bit: no
 
-model-args:
+model_args:
   trust_remote_code: yes
   device_map: <>device
   load_in_4bit: <>4bit
   load_in_8bit: <>8bit
 
-tokenizer-args:
+tokenizer_args:
   trust_remote_code: yes
   device_map: <>device
 

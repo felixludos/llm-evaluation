@@ -5,15 +5,18 @@ from .imports import *
 from threading import Thread
 
 
-class Task:
-	name: str = None
-	_task: Thread = None
-	_is_done: bool = False
+class Task(fig.Configurable):
+	def __init__(self, name: str = None, **kwargs):
+		super().__init__(**kwargs)
+		self.name = name
+		self._task = None
+		self._is_done = False
 
 
 	def generate_name(self, ID: int, timestamp: datetime):
 		if self.name is None:
-			self.name = f'job{ID}_{timestamp.strftime("%Y%m%d-%H%M%S")}'
+			# self.name = f'task{str(ID).zfill(3)}_{timestamp.strftime("%Y%m%d-%H%M%S")}'
+			self.name = f'task{str(ID).zfill(3)}'
 		return self.name
 
 
@@ -53,7 +56,7 @@ class Task:
 
 
 	def run(self):
-		self._run_job()
+		self._run()
 		self.cleanup()
 		self._is_done = True
 
@@ -62,14 +65,27 @@ class Task:
 		self._task = None
 
 
-	def _run_job(self):
+	def _run(self):
 		raise NotImplementedError
 
 
 
+class ManagedTask(Task):
+	_manager = None
+
+	@property
+	def manager(self):
+		if self._manager is None:
+			raise RuntimeError('Manager not set')
+		return self._manager
+
+
+
 class Timestamped(Task):
-	start_time: datetime = None
-	finish_time: datetime = None
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self.start_time = None
+		self.finish_time = None
 
 
 	def reset(self):
@@ -103,8 +119,10 @@ class Timestamped(Task):
 
 
 class ResourceAware(Timestamped):
-	start_snapshot: Dict[str, Any] = None
-	end_snapshot: Dict[str, Any] = None
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self.start_snapshot = None
+		self.end_snapshot = None
 
 	@staticmethod
 	def resource_snapshot(fast: bool = False):
@@ -209,10 +227,12 @@ class ResourceAware(Timestamped):
 
 
 class IterativeTask(Task):
-	_stream = None
-	_kill_flag: bool = False
-	_run_iterations: Optional[int] = None
-	num_iterations: int = 0
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self._stream = None
+		self._kill_flag = False
+		self._run_iterations = None
+		self.num_iterations = 0
 
 
 	def reset(self):
@@ -238,7 +258,7 @@ class IterativeTask(Task):
 		super().start()
 
 
-	def _run_job(self):
+	def _run(self):
 		self.initialize()
 		i = 0
 		while (self._stream is not None and not self._kill_flag
@@ -295,7 +315,11 @@ class IterativeTask(Task):
 
 
 class TimedIterative(Timestamped, IterativeTask):
-	init_time = None
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self.init_time = None
+
+
 	def initialize(self):
 		if self.init_time is None:
 			self.init_time = datetime.now()
@@ -320,7 +344,9 @@ class TimedIterative(Timestamped, IterativeTask):
 
 
 class ExpectedTiming(Timestamped):
-	expected_duration: timedelta = None
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self.expected_duration = None
 
 	def status(self):
 		progress = super().status()
@@ -348,8 +374,10 @@ class ExpectedTiming(Timestamped):
 
 
 class ExpectedResources(ResourceAware, ExpectedTiming):
-	expected_ram_usage: float = 0
-	expected_gpu_usage: float = 0
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self.expected_ram_usage = 0
+		self.expected_gpu_usage = 0
 
 
 	def status(self, fast: bool = False):
@@ -370,7 +398,9 @@ class ExpectedResources(ResourceAware, ExpectedTiming):
 
 
 class ExpectedIterations(TimedIterative):
-	expected_num_iterations: int = None
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self.expected_num_iterations = None
 
 
 	def status(self):
@@ -391,14 +421,53 @@ class ExpectedIterations(TimedIterative):
 
 
 class PersistentTask(Task):
+	_root = None
 	def persist(self, root: Path):
+		self._root = root
 
 
 
-		raise NotImplementedError
+class ReloadableTask(PersistentTask):
+	def reload(self, root: Path):
+		pass
 
 
 
+@fig.modifier('autochain')
+class Chained(Task):
+	def __init__(self, then: Task = None, **kwargs):
+		super().__init__(**kwargs)
+		self.then = then
 
+
+	def run(self):
+		super().run()
+		if self.then is not None:
+			self.then.complete()
+
+
+
+@fig.component('multitask')
+class MultiTask(Task):
+	def __init__(self, tasks: list[Task] = (), parallel: bool = False, **kwargs):
+		super().__init__(**kwargs)
+		self.tasks = tasks
+		self._parallel = parallel
+
+
+	def status(self):
+		progress = super().status()
+		progress['completed'] = sum(t.is_done for t in self.tasks)
+		progress['running'] = sum(t.is_running for t in self.tasks)
+		progress['subtasks'] = [t.status() for t in self.tasks]
+		return progress
+
+
+	def _run(self):
+		if self._parallel:
+			for task in self.tasks:
+				task.start()
+		for task in self.tasks:
+			task.complete()
 
 

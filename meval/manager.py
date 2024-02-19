@@ -1,22 +1,40 @@
 from .imports import *
 
-from .tasks import Task, ResourceAware, ExpectedResources, ExpectedIterations
+from .tasks import Task, ResourceAware, ExpectedResources, ExpectedIterations, ManagedTask, PersistentTask
 from .errors import JobNotFound, UnknownJobType
 from .util import data_root
 
 
 
-@fig.component('tasks-manager')
+@fig.component('task-manager')
 class Manager(fig.Configurable):
-	def __init__(self, root: Path = data_root(), config_root: Optional[Path] = None, **kwargs):
-		root.mkdir(parents=True, exist_ok=True)
+	def __init__(self, config_root: Optional[Path] = None, is_prime: bool = True, **kwargs):
 		super().__init__(**kwargs)
 		if config_root is not None and config_root.exists():
 			proj = fig.get_current_project()
 			proj.register_config_dir(config_root)
-		self.root = root
+		if is_prime:
+			ManagedTask._manager = self
 		self.config_root = config_root
 		self.tasks = []
+		self._description = []
+
+
+	def append_description(self, *args):
+		self._description.extend(args)
+
+
+	def describe(self):
+		return self._description
+
+
+	def task_meta(self, frame):
+		return {
+			'name': frame.name,
+			'id': frame.ID,
+			'timestamp': frame.timestamp,
+			'manager': self.describe(),
+		}
 
 
 	@dataclass
@@ -28,25 +46,15 @@ class Manager(fig.Configurable):
 		task: Task
 
 
-	_job_id_file_name = 'job_list.csv'
 	def _generate_task_id(self):
-		# with path.open('a') as f:
-		# 	writer = csv.writer(f)
-		# 	writer.writerow([name, timestamp])
-		# return sum(1 for _ in path.open('r'))
-		path = self.root / self._job_id_file_name
-		with path.open('r+') as f:
-			val = int(f.read() or '0') + 1
-			f.seek(0)
-			f.write(str(val))
-		return val
+		return len(self.tasks) + 1
 
 
 	def _create_task(self, cfg: fig.Configuration):
-		task = cfg.process()
+		task = cfg.pull('task')
 		if not isinstance(task, Task):
 			# print(f'Job is not a Job: {job}')
-			raise ValueError(f'Job is not a Job: {task}')
+			raise ValueError(f'Task is not a Task: {task}')
 
 		ID = self._generate_task_id()
 		now = datetime.now()
@@ -58,7 +66,7 @@ class Manager(fig.Configurable):
 		return frame
 
 
-	def create_job(self, cfg: str | fig.Configuration, *other, **params) -> int:
+	def create_task(self, cfg: str | fig.Configuration, *other, **params) -> int:
 		if isinstance(cfg, str):
 			cfg = fig.create_config(cfg, *other, **params)
 		assert isinstance(cfg, fig.Configuration), f'Invalid config type: {cfg} ({type(cfg)})'
@@ -136,6 +144,83 @@ class Manager(fig.Configurable):
 
 
 
+@fig.component('persistent-manager')
+class PersistenceManager(Manager):
+	def __init__(self, root: Path = data_root(), is_prime: bool = True, **kwargs):
+		root.mkdir(parents=True, exist_ok=True)
+		super().__init__(**kwargs)
+		self.root = root
+
+
+	_job_id_file_name = 'job_list.csv'
+	def _generate_task_id(self):
+		# with path.open('a') as f:
+		# 	writer = csv.writer(f)
+		# 	writer.writerow([name, timestamp])
+		# return sum(1 for _ in path.open('r'))
+		path = self.root / self._job_id_file_name
+		with path.open('r+') as f:
+			val = int(f.read() or '0') + 1
+			f.seek(0)
+			f.write(str(val))
+		return val
+
+
+	def task_meta(self, frame):
+		return {
+			'name': frame.name,
+			'id': frame.ID,
+			'timestamp': frame.timestamp,
+			'path': str(frame.path),
+			'manager': self.describe(),
+		}
+
+
+	def _create_task(self, cfg: fig.Configuration):
+		frame = super()._create_task(cfg)
+		self._register_task(frame)
+		return frame
+
+
+	@dataclass
+	class _TaskFrame(Manager._TaskFrame):
+		path: Path = None
+
+
+	def _save_task_meta(self, frame: _TaskFrame):
+		frame.config.export('config', root=frame.path)
+		save_json(self.task_meta(frame), frame.path / 'meta.json')
+
+
+	_content_file_name = 'content'
+	def _register_task(self, frame: _TaskFrame):
+		task = frame.task
+
+		assert self.root is not None, f'Root path not set: {self.root}'
+
+		name = frame.name
+		path = self.root / name
+		i = 1
+		while path.exists():
+			path = self.root / f'{name}_{i}'
+			i += 1
+			if i > 100:
+				raise ValueError(f'Path already exists: {path}')
+
+		path.mkdir(parents=True, exist_ok=True)
+		frame.path = path
+
+		self._save_task_meta(frame)
+
+		if isinstance(task, PersistentTask):
+			content_path = path / self._content_file_name
+			content_path.mkdir(exist_ok=True)
+			task.persist(content_path)
+
+
+	def reload(self, ident: int | str):
+		# requires that the task is reloadable
+		raise NotImplementedError
 
 
 
