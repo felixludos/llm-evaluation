@@ -36,7 +36,7 @@ class Manager_Server(App):
 
 
 	@get
-	async def jobs(self, limit: int = 5, status: bool = False):
+	async def tasks(self, limit: int = 5, status: bool = False):
 		out = self.manager.report(limit, status=status)
 		return out
 
@@ -61,7 +61,7 @@ class Manager_Server(App):
 
 	@get
 	async def chain(self, prev: str | int, link: str | int):
-		out = self.manager.chain_jobs(prev, link)
+		out = self.manager.chain_tasks(prev, link)
 		return out
 
 

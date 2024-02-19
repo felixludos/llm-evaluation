@@ -3,7 +3,7 @@ _meta.script_name: start-server
 
 app._type: manager-server
 
-manager._type: job-manager
+manager._type: task-manager
 
 config_root._type: default-config-root
 

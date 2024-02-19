@@ -6,7 +6,7 @@ from .util import data_root
 
 
 
-@fig.component('job-manager')
+@fig.component('tasks-manager')
 class Manager(fig.Configurable):
 	def __init__(self, root: Path = data_root(), config_root: Optional[Path] = None, **kwargs):
 		root.mkdir(parents=True, exist_ok=True)
@@ -16,7 +16,7 @@ class Manager(fig.Configurable):
 			proj.register_config_dir(config_root)
 		self.root = root
 		self.config_root = config_root
-		self.jobs = []
+		self.tasks = []
 
 
 	@dataclass
@@ -54,7 +54,7 @@ class Manager(fig.Configurable):
 
 		frame = self._JobFrame(ID=ID, name=name, timestamp=now, config=cfg, job=job)
 
-		self.jobs.append(frame)
+		self.tasks.append(frame)
 		return frame
 
 
@@ -69,12 +69,12 @@ class Manager(fig.Configurable):
 
 	def _find_job_frame(self, ident: int | str):
 		if isinstance(ident, int):
-			matches = [j for j in self.jobs if j.ID == ident]
+			matches = [j for j in self.tasks if j.ID == ident]
 		elif isinstance(ident, str):
 			try:
 				ident = int(ident)
 			except ValueError:
-				matches = [j for j in self.jobs if j.name == ident]
+				matches = [j for j in self.tasks if j.name == ident]
 			else:
 				return self._find_job_frame(ident)
 		else:
@@ -84,7 +84,7 @@ class Manager(fig.Configurable):
 			raise JobNotFound(f'Job not found: {ident}')
 
 		if len(matches) > 1:
-			raise JobNotFound(f'Multiple jobs found: {ident}')
+			raise JobNotFound(f'Multiple tasks found: {ident}')
 
 		return matches[0]
 
@@ -119,8 +119,8 @@ class Manager(fig.Configurable):
 
 
 	def report(self, limit: int = 5, status: bool = False):
-		limit = min(limit, len(self.jobs))
-		frames = sorted(self.jobs, key=lambda j: j.timestamp, reverse=True)[:limit]
+		limit = min(limit, len(self.tasks))
+		frames = sorted(self.tasks, key=lambda j: j.timestamp, reverse=True)[:limit]
 		report = [{'id': frame.ID, 'name': frame.name, 'timestamp': frame.timestamp} for frame in frames]
 		if status:
 			for frame, info in zip(frames, report):
@@ -128,7 +128,7 @@ class Manager(fig.Configurable):
 		return report
 
 
-	def chain_jobs(self, prev_link: int | str, next_link: int | str):
+	def chain_tasks(self, prev_link: int | str, next_link: int | str):
 		prev_frame = self._find_job_frame(prev_link)
 		next_frame = self._find_job_frame(next_link)
 		next_frame.job.chain(prev_frame.job)
