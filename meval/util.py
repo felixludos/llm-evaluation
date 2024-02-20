@@ -81,5 +81,22 @@ class App(fig.Configurable):
 
 
 
+def deep_update(info1: dict, info2: dict, *other: dict):
+	if len(other):
+		merged = deep_update(info1, info2)
+		return deep_update(merged, *other)
+
+	merged = {}
+	for k1, v1 in info1.items():
+		if k1 in info2:
+			v2 = info2[k1]
+			if isinstance(v1, dict) and isinstance(v2, dict):
+				merged[k1] = deep_update(v1, v2)
+			merged[k1] = v2
+		else:
+			merged[k1] = v1
+	return merged
+
+
 
 

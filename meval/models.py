@@ -1,4 +1,5 @@
 from .imports import *
+from .util import deep_update
 
 
 
@@ -9,23 +10,14 @@ class Runner(fig.Configurable):
 		return self.model is not None
 
 
-	def load(self, *args, **kwargs):
-		if self.is_loaded:
-			return
-		self._load(*args, **kwargs)
-		return self
-
-
-	def _load(self, *args, **kwargs):
+	def load(self):
 		raise NotImplementedError
 
 
 
 @fig.component('default-huggingface')
 class DefaultRunner(Runner):
-	def __init__(self, model_id: str, model_args=None, tokenizer_args=None,
-				 max_new_tokens: int = 50, num_return_sequences: int = 1,
-				 **kwargs):
+	def __init__(self, model_id: str, model_args=None, tokenizer_args=None, generate_args=None, **kwargs):
 		super().__init__(**kwargs)
 		self.model = None
 		self.tokenizer = None
@@ -33,39 +25,39 @@ class DefaultRunner(Runner):
 		self.model_id = model_id
 		self.model_args = model_args or {}
 		self.tokenizer_args = tokenizer_args or {}
-
-		self.max_new_tokens = max_new_tokens
-		self.num_return_sequences = num_return_sequences
+		self.generate_args = generate_args or {}
 
 
-	def _load(self):
+	def load(self):
+		if self.is_loaded:
+			return
+
 		model_id = self.model_id
 		model_args = self.model_args
 		tokenizer_args = self.tokenizer_args
 
-		model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.bfloat16, **model_args)
+		# torch_dtype=torch.bfloat16
+		model = AutoModelForCausalLM.from_pretrained(model_id, **model_args)
 		tokenizer = AutoTokenizer.from_pretrained(model_id, **tokenizer_args)
 
 		self.tokenizer = tokenizer
 		self.model = model
 
 
-	def generate(self, text: str, max_new_tokens: int = None, num_return_sequences: int = None):
-		if max_new_tokens is None:
-			max_new_tokens = self.max_new_tokens
-		if num_return_sequences is None:
-			num_return_sequences = self.num_return_sequences
-		if self.model is None:
+	def generate(self, text: str, **params):
+		if not self.is_loaded:
 			raise ValueError("Model not loaded")
+		params = deep_update(self.generate_args, params)
+		return self.get_response(text, params)
 
-		input_ids = self.tokenizer.encode(text, return_tensors='pt')
-		input_ids = input_ids.to(self.model.device)
 
-		with torch.no_grad():
-			output = self.model.generate(input_ids, max_new_tokens=max_new_tokens,
-										 num_return_sequences=num_return_sequences)
-		return output
-
+	def get_response(self, text: str, params: dict):
+		input_ids = self.tokenizer.encode(text, return_tensors='pt').to(self.model.device)
+		# with torch.no_grad():
+		output = self.model.generate(input_ids, **params)
+		num_input_tokens, num_output_tokens = input_ids.size(1), output.size(1)
+		response = self.tokenizer.decode(output[0], skip_special_tokens=True)
+		return {'response': response, 'inp_tok': num_input_tokens, 'out_tok': num_output_tokens}
 
 
 

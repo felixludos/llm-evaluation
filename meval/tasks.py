@@ -183,7 +183,7 @@ class ResourceAware(Timestamped):
 		self.end_snapshot = None
 
 
-	def status(self, fast: bool = False):
+	def status(self, fast: bool = True):
 		progress = super().status()
 
 		current = self.resource_snapshot(fast=fast)
@@ -433,9 +433,15 @@ class ReloadableTask(PersistentTask):
 
 
 
+class Chainable(Task):
+	def chain(self, task: Task):
+		raise NotImplementedError
+
+
+
 @fig.modifier('autochain')
-class Chained(Task):
-	def __init__(self, then: Task = None, **kwargs):
+class AutoChained(Task):
+	def __init__(self, then: Chainable = None, **kwargs):
 		super().__init__(**kwargs)
 		self.then = then
 
@@ -443,6 +449,7 @@ class Chained(Task):
 	def run(self):
 		super().run()
 		if self.then is not None:
+			self.then.chain(self)
 			self.then.complete()
 
 

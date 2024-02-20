@@ -66,9 +66,11 @@ class Manager(fig.Configurable):
 		return frame
 
 
-	def create_task(self, cfg: str | fig.Configuration, *other, **params) -> int:
+	def create_task(self, cfg: str | dict | fig.Configuration) -> int:
 		if isinstance(cfg, str):
-			cfg = fig.create_config(cfg, *other, **params)
+			cfg = fig.create_config(cfg)
+		elif isinstance(cfg, dict):
+			cfg = fig.create_config(**cfg)
 		assert isinstance(cfg, fig.Configuration), f'Invalid config type: {cfg} ({type(cfg)})'
 
 		frame = self._create_task(cfg)
