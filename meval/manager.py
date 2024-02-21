@@ -44,14 +44,16 @@ class Manager(fig.Configurable):
 		timestamp: datetime
 		config: fig.Configuration
 		task: Task
+		parent: int = None
+		subs: list[int] = None
 
 
 	def _generate_task_id(self):
 		return len(self.tasks) + 1
 
 
-	def _create_task(self, cfg: fig.Configuration):
-		task = cfg.pull('task')
+	def _create_task(self, cfg: fig.Configuration, task_key: str = 'task'):
+		task = cfg.pull(task_key)
 		if not isinstance(task, Task):
 			# print(f'Job is not a Job: {job}')
 			raise ValueError(f'Task is not a Task: {task}')
@@ -66,14 +68,18 @@ class Manager(fig.Configurable):
 		return frame
 
 
-	def create_task(self, cfg: str | dict | fig.Configuration) -> int:
+	def create_sub(self, ident: int | str, task_key: str):
+		raise NotImplementedError # TODO
+
+
+	def create_task(self, cfg: str | dict | fig.Configuration, task_key: str = 'task') -> int:
 		if isinstance(cfg, str):
 			cfg = fig.create_config(cfg)
 		elif isinstance(cfg, dict):
 			cfg = fig.create_config(**cfg)
 		assert isinstance(cfg, fig.Configuration), f'Invalid config type: {cfg} ({type(cfg)})'
 
-		frame = self._create_task(cfg)
+		frame = self._create_task(cfg, task_key=task_key)
 		return frame.ID
 
 
@@ -118,9 +124,7 @@ class Manager(fig.Configurable):
 	def complete_task(self, ident: int | str):
 		frame = self._find_frame(ident)
 		out = frame.task.complete()
-		if out is not None:
-			return out
-		return frame.ID
+		return {'id': frame.ID, 'out': out}
 
 
 	def task_status(self, ident: int | str):

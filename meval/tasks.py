@@ -1,8 +1,10 @@
 import torch.cuda
 
 from .imports import *
+from .errors import JobIncompleteError, DependencyError
 
 from threading import Thread
+
 
 
 class Task(fig.Configurable):
@@ -13,11 +15,12 @@ class Task(fig.Configurable):
 		self._is_done = False
 
 
+	_default_name = 'task{str(ID).zfill(3)}'
 	def generate_name(self, ID: int, timestamp: datetime):
-		if self.name is None:
-			# self.name = f'task{str(ID).zfill(3)}_{timestamp.strftime("%Y%m%d-%H%M%S")}'
-			self.name = f'task{str(ID).zfill(3)}'
-		return self.name
+		template = self._default_name if self.name is None else self.name
+		name = pformat(template, ID=ID, timestamp=timestamp)
+		self.name = name
+		return name
 
 
 	def reset(self):
@@ -36,11 +39,19 @@ class Task(fig.Configurable):
 		self._task.start()
 
 
-	def complete(self): # blocking
+	def complete(self, respond: bool = True): # blocking
 		if self.is_running:
 			self._task.join()
 		elif not self.is_done:
 			self.run()
+		if respond:
+			return self._get_response()
+
+
+	def response(self):
+		if not self.is_done:
+			raise JobIncompleteError('Job not complete')
+		return self._get_response()
 
 
 	@property
@@ -56,17 +67,37 @@ class Task(fig.Configurable):
 
 
 	def run(self):
+		self.prepare()
 		self._run()
 		self.cleanup()
 		self._is_done = True
 
 
+	def prepare(self):
+		'''should be agnostic to multiple calls'''
+		self._prepare()
+
+
 	def cleanup(self):
+		'''should be agnostic to multiple calls'''
+		self._cleanup()
 		self._task = None
+
+
+	def _prepare(self):
+		pass
+
+
+	def _cleanup(self):
+		pass
 
 
 	def _run(self):
 		raise NotImplementedError
+
+
+	def _get_response(self):
+		pass
 
 
 
@@ -247,7 +278,8 @@ class IterativeTask(Task):
 		self._kill_flag = True
 
 
-	def initialize(self):
+	def prepare(self):
+		super().prepare()
 		if self._stream is None:
 			self._stream = self._generate_stream()
 
@@ -259,7 +291,6 @@ class IterativeTask(Task):
 
 
 	def _run(self):
-		self.initialize()
 		i = 0
 		while (self._stream is not None and not self._kill_flag
 			   and (self._run_iterations is None or i < self._run_iterations)):
@@ -269,8 +300,7 @@ class IterativeTask(Task):
 
 	def step(self, n: Optional[int] = 1): # user-level blocking
 		'''takes at most n steps'''
-		if self._stream is None:
-			self.initialize()
+		self.prepare()
 		return self._take_steps(n)
 
 
@@ -287,10 +317,12 @@ class IterativeTask(Task):
 				n -= 1
 
 
-	def complete(self, finish: bool = False): # blocking
-		super().complete()
+	def complete(self, respond: bool = True, finish: bool = False): # blocking
+		super().complete(respond=False)
 		if finish and not self.is_done:
 			self.step(None)
+		if respond:
+			return self._get_response()
 
 
 	@property
@@ -420,6 +452,36 @@ class ExpectedIterations(TimedIterative):
 
 
 
+class Chainable(Task):
+	def chain(self, task: Task):
+		raise NotImplementedError
+
+
+
+class Subtask(Chainable):
+	_dependency: Optional[Task] = None
+	_strict: bool = True
+	_wait: bool = False
+
+
+	def run(self):
+		if self._dependency is not None:
+			if self._strict and not self._dependency.is_done:
+				if self._wait:
+					self._dependency.complete()
+				else:
+					raise DependencyError(f'Dependency not complete: {self._dependency}')
+			self.chain(self._dependency)
+
+		super().run()
+
+
+
+class Extendable(Task):
+	_subs: List[Subtask] = None
+
+
+
 class PersistentTask(Task):
 	_root = None
 	def persist(self, root: Path):
@@ -430,12 +492,6 @@ class PersistentTask(Task):
 class ReloadableTask(PersistentTask):
 	def reload(self, root: Path):
 		pass
-
-
-
-class Chainable(Task):
-	def chain(self, task: Task):
-		raise NotImplementedError
 
 
 
@@ -456,7 +512,9 @@ class AutoChained(Task):
 
 @fig.component('multitask')
 class MultiTask(Task):
-	def __init__(self, tasks: list[Task] = (), parallel: bool = False, **kwargs):
+	def __init__(self, tasks: list[Task] = None, parallel: bool = False, **kwargs):
+		if tasks is None:
+			tasks = []
 		super().__init__(**kwargs)
 		self.tasks = tasks
 		self._parallel = parallel

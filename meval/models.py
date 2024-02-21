@@ -45,6 +45,7 @@ class DefaultRunner(Runner):
 
 
 	def generate(self, text: str, **params):
+		'''top level function, not really used by tasks'''
 		if not self.is_loaded:
 			raise ValueError("Model not loaded")
 		params = deep_update(self.generate_args, params)
@@ -60,6 +61,7 @@ class DefaultRunner(Runner):
 		return {'response': response, 'inp_tok': num_input_tokens, 'out_tok': num_output_tokens}
 
 
+	# def get_probs(self):
 
 
 

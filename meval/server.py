@@ -15,6 +15,7 @@ class Manager_Server(App):
 
 	def record_description(self):
 		self.manager.append_description({'server': {'host': self.host, 'port': self.port}})
+		return self
 
 
 	@get
@@ -28,14 +29,14 @@ class Manager_Server(App):
 
 
 	@get
-	async def create(self, name: str):
-		out = self.manager.create_task(name)
+	async def create(self, name: str, item: str = 'task'):
+		out = self.manager.create_task(name, task_key=item)
 		return out
 
 
 	@post
-	async def create_custom(self, config: dict):
-		out = self.manager.create_task(config)
+	async def create_custom(self, config: dict, item: str = 'task'):
+		out = self.manager.create_task(config, task_key=item)
 		return out
 
 
