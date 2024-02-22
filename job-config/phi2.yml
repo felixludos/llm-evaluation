@@ -1,10 +1,11 @@
 
 task._type: loader
 
-
 runner._type: default-huggingface
 
 model_id: microsoft/phi-2
+
+expected_duration: 226
 
 device: cuda
 

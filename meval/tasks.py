@@ -2,6 +2,7 @@ import torch.cuda
 
 from .imports import *
 from .errors import JobIncompleteError, DependencyError
+from . import util
 
 from threading import Thread
 
@@ -10,15 +11,30 @@ from threading import Thread
 class Task(fig.Configurable):
 	def __init__(self, name: str = None, **kwargs):
 		super().__init__(**kwargs)
+		self._meta_info = {}
 		self.name = name
 		self._task = None
 		self._is_done = False
 
 
-	_default_name = 'task{str(ID).zfill(3)}'
-	def generate_name(self, ID: int, timestamp: datetime):
+	@property
+	def name(self):
+		return self._meta_info.get('name')
+	@name.setter
+	def name(self, value: str):
+		self._meta_info['name'] = value
+
+
+	def update_meta_info(self, **info):
+		self._meta_info.update(info)
+	def meta(self):
+		return self._meta_info
+
+
+	_default_name = '{config.pull("configname","task",silent=True)}-{str(ID).zfill(3)}'
+	def generate_name(self, config: fig.Configuration, ID: int, timestamp: datetime):
 		template = self._default_name if self.name is None else self.name
-		name = pformat(template, ID=ID, timestamp=timestamp)
+		name = pformat(template, ID=ID, timestamp=timestamp, config=config)
 		self.name = name
 		return name
 
@@ -96,6 +112,12 @@ class Task(fig.Configurable):
 		raise NotImplementedError
 
 
+	def get_response(self):
+		if not self.is_done:
+			raise JobIncompleteError('Job not complete')
+		return self._get_response()
+
+
 	def _get_response(self):
 		pass
 
@@ -134,17 +156,17 @@ class Timestamped(Task):
 	def status(self):
 		progress = super().status()
 		progress['current_time'] = datetime.now()
-		progress['start_time'] = self.start_time
-		progress['finish_time'] = self.finish_time
 		if self.start_time is not None:
-			progress['started'] = progress['current_time'] - self.start_time
-			progress['started_human'] = humanize.naturaldelta(progress['started'])
+			progress['start_time'] = self.start_time
+			# progress['started'] = progress['current_time'] - self.start_time
+			# progress['started_human'] = humanize.naturaldelta(progress['started'])
 		if self.finish_time is not None:
-			progress['finished'] = progress['current_time'] - self.finish_time
-			progress['finished_human'] = humanize.naturaldelta(progress['finished'])
+			progress['finish_time'] = self.finish_time
+			# progress['finished'] = progress['current_time'] - self.finish_time
+			# progress['finished_human'] = humanize.naturaldelta(progress['finished'])
 		if self.start_time is not None and self.finish_time is not None:
 			progress['duration'] = self.finish_time - self.start_time
-			progress['duration_human'] = humanize.naturaldelta(progress['duration'])
+			# progress['duration_human'] = humanize.naturaldelta(progress['duration'])
 		return progress
 
 
@@ -154,58 +176,6 @@ class ResourceAware(Timestamped):
 		super().__init__(**kwargs)
 		self.start_snapshot = None
 		self.end_snapshot = None
-
-	@staticmethod
-	def resource_snapshot(fast: bool = False):
-		system_info = {}
-
-		# GPU information (if CUDA is available)
-		if torch.cuda.is_available():
-			gpu_info = []
-			for i in range(torch.cuda.device_count()):
-				gpu_info.append({
-					"name": torch.cuda.get_device_name(i),
-					"total_memory_GB": torch.cuda.get_device_properties(i).total_memory / (1024 ** 3),
-					"memory_allocated_GB": torch.cuda.memory_allocated(i) / (1024 ** 3),
-					"memory_cached_GB": torch.cuda.memory_reserved(i) / (1024 ** 3),
-					'utilization': torch.cuda.utilization(i),
-				})
-
-			mem_usage = nvidia_smi.getInstance().DeviceQuery('memory.free, memory.total')
-			for g, m in zip(gpu_info, mem_usage['gpu']):
-				g['smi_free_GB'] = m['fb_memory_usage']['free'] / (1024)
-				g['smi_total_GB'] = m['fb_memory_usage']['total'] / (1024)
-
-			system_info["gpu"] = gpu_info
-		else:
-			system_info["gpu"] = None
-
-		# CPU information
-		system_info["cpu"] = {
-			"physical_cores": psutil.cpu_count(logical=False),
-			"total_cores": psutil.cpu_count(logical=True),
-			"max_frequency_MHz": psutil.cpu_freq().max,
-			"min_frequency_MHz": psutil.cpu_freq().min,
-			"current_frequency_MHz": psutil.cpu_freq().current,
-		}
-		if not fast:
-			system_info["cpu"].update({
-				"cpu_usage_per_core": psutil.cpu_percent(percpu=True, interval=1),
-				"total_cpu_usage": psutil.cpu_percent(interval=1)
-			})
-
-		# RAM information
-		ram_info = psutil.virtual_memory()
-		proc = psutil.Process()
-		system_info["ram"] = {
-			"total_GB": ram_info.total / (1024 ** 3),
-			"available_GB": ram_info.available / (1024 ** 3),
-			"total_used_GB": ram_info.used / (1024 ** 3),
-			"percentage_used": ram_info.percent,
-			"proc_used_GB": proc.memory_info().rss / (1024 ** 3),
-		}
-
-		return system_info
 
 
 	def reset(self):
@@ -217,7 +187,7 @@ class ResourceAware(Timestamped):
 	def status(self, fast: bool = True):
 		progress = super().status()
 
-		current = self.resource_snapshot(fast=fast)
+		current = util.resource_snapshot(cpu_interval=None if fast else 1)
 
 		if 'total_cpu_usage' in current.get('cpu', {}):
 			progress['cpu_util'] = current['cpu']['total_cpu_usage']
@@ -251,9 +221,9 @@ class ResourceAware(Timestamped):
 
 	def run(self):
 		if self.start_snapshot is None:
-			self.start_snapshot = self.resource_snapshot()
+			self.start_snapshot = util.resource_snapshot()
 		super().run()
-		self.end_snapshot = self.resource_snapshot()
+		self.end_snapshot = util.resource_snapshot()
 
 
 
@@ -264,6 +234,7 @@ class IterativeTask(Task):
 		self._kill_flag = False
 		self._run_iterations = None
 		self.num_iterations = 0
+		self._batch_num_iterations = 0
 
 
 	def reset(self):
@@ -271,6 +242,7 @@ class IterativeTask(Task):
 		self._stream = None
 		self._run_iterations = None
 		self.num_iterations = 0
+		self._batch_num_iterations = 0
 		super().reset()
 
 
@@ -291,11 +263,11 @@ class IterativeTask(Task):
 
 
 	def _run(self):
-		i = 0
+		self._batch_num_iterations = 0
 		while (self._stream is not None and not self._kill_flag
-			   and (self._run_iterations is None or i < self._run_iterations)):
+			   and (self._run_iterations is None or self._batch_num_iterations < self._run_iterations)):
 			self._take_steps(1)
-			i += 1
+			self._batch_num_iterations += 1
 
 
 	def step(self, n: Optional[int] = 1): # user-level blocking
@@ -347,30 +319,11 @@ class IterativeTask(Task):
 
 
 class TimedIterative(Timestamped, IterativeTask):
-	def __init__(self, **kwargs):
-		super().__init__(**kwargs)
-		self.init_time = None
-
-
-	def initialize(self):
-		if self.init_time is None:
-			self.init_time = datetime.now()
-		super().initialize()
-
-
-	def reset(self):
-		super().reset()
-		self.init_time = None
-
-
 	def status(self):
 		progress = super().status()
-		progress['init_time'] = self.init_time
-
-		if self.init_time is not None:
-			progress['rate'] = self.num_iterations / (progress['current_time'] - self.init_time).total_seconds()
-		if self.is_running and self.start_time is not None:
-			progress['run_rate'] = self.num_iterations / (progress['current_time'] - self.start_time).total_seconds()
+		if self.is_running and 'start_time' in progress and 'current_time' in progress:
+			progress['itr_per_sec'] = (self._batch_num_iterations
+									   / (progress['current_time'] - progress['start_time']).total_seconds())
 		return progress
 
 
@@ -383,24 +336,26 @@ class ExpectedTiming(Timestamped):
 	def status(self):
 		progress = super().status()
 		if self.expected_duration is not None:
+			progress['expected_duration'] = self.expected_duration
 			if self.start_time is not None:
 				progress['expected_finish_time'] = self.start_time + self.expected_duration
 			if 'duration' in progress:
-				progress['expected_duration_delta'] = progress['duration'] - self.expected_duration
-				progress['expected_relative_duration'] = (progress['duration'].total_seconds()
-														  / self.expected_duration.total_seconds())
-				# progress['expected_duration'] = self.expected_duration
-				progress['expected_duration_human'] = humanize.naturaldelta(self.expected_duration)
-				diff = progress['expected_duration_delta'].total_seconds()
-				progress['expected_duration_delta_human'] = (humanize.naturaldelta(timedelta(seconds=abs(diff)))
-													   + (' longer' if diff > 0 else ' shorter'))
-			elif 'started' in progress:
-				progress['expected_progress'] = (progress['started'].total_seconds()
-												 / self.expected_duration.total_seconds())
-				remaining = self.expected_duration - progress['started']
+				pass
+				# progress['expected_duration_delta'] = progress['duration'] - self.expected_duration
+				# progress['expected_relative_duration'] = (progress['duration'].total_seconds()
+				# 										  / self.expected_duration.total_seconds())
+				# # progress['expected_duration'] = self.expected_duration
+				# progress['expected_duration_human'] = humanize.naturaldelta(self.expected_duration)
+				# diff = progress['expected_duration_delta'].total_seconds()
+				# progress['expected_duration_delta_human'] = (humanize.naturaldelta(timedelta(seconds=abs(diff)))
+				# 									   + (' longer' if diff > 0 else ' shorter'))
+			elif 'current_time' in progress and 'start_time' in progress:
+				progress['expected_progress'] = ((progress['current_time'] - progress['start_time']).total_seconds()
+												 / progress['expected_duration'].total_seconds())
+				remaining = self.expected_duration - (progress['current_time'] - progress['start_time'])
 				if remaining.total_seconds() > 0:
 					progress['expected_remaining'] = remaining
-					progress['expected_remaining_human'] = humanize.naturaldelta(progress['expected_remaining'])
+					# progress['expected_remaining_human'] = humanize.naturaldelta(progress['expected_remaining'])
 		return progress
 
 
@@ -459,26 +414,35 @@ class Chainable(Task):
 
 
 class Subtask(Chainable):
-	_dependency: Optional[Task] = None
-	_strict: bool = True
-	_wait: bool = False
+	def __init__(self, *, strict: bool = True, wait: bool = True, **kwargs):
+		super().__init__(**kwargs)
+		self._dependency = []
+		self._strict = strict
+		self._wait = wait
+
+
+	def add_dependency(self, task: Task):
+		self._dependency.append(task)
+		return self
+
+
+	def status(self):
+		progress = super().status()
+		if len(self._dependency):
+			progress['waiting_for'] = [t.meta() for t in self._dependency if not t.is_done]
+		return progress
 
 
 	def run(self):
-		if self._dependency is not None:
-			if self._strict and not self._dependency.is_done:
+		for dep in self._dependency:
+			if self._strict and not dep.is_done:
 				if self._wait:
-					self._dependency.complete()
+					dep.complete()
 				else:
-					raise DependencyError(f'Dependency not complete: {self._dependency}')
-			self.chain(self._dependency)
+					raise DependencyError(f'Dependency not complete: {dep}')
+			self.chain(dep)
 
 		super().run()
-
-
-
-class Extendable(Task):
-	_subs: List[Subtask] = None
 
 
 

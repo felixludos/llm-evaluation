@@ -1,0 +1,7 @@
+
+task._type: generate
+
+generate_args:
+  max_new_tokens: 500
+#  max_time: 30
+

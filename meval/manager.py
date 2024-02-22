@@ -29,12 +29,7 @@ class Manager(fig.Configurable):
 
 
 	def task_meta(self, frame):
-		return {
-			'name': frame.name,
-			'id': frame.ID,
-			'timestamp': frame.timestamp,
-			'manager': self.describe(),
-		}
+		return frame.task.meta()
 
 
 	@dataclass
@@ -52,34 +47,58 @@ class Manager(fig.Configurable):
 		return len(self.tasks) + 1
 
 
-	def _create_task(self, cfg: fig.Configuration, task_key: str = 'task'):
+	def _create_task(self, cfg: fig.Configuration, task_key: str = 'task', base: int | str = None):
+		# task = cfg.peek_create(task_key)
 		task = cfg.pull(task_key)
+
 		if not isinstance(task, Task):
 			# print(f'Job is not a Job: {job}')
 			raise ValueError(f'Task is not a Task: {task}')
 
 		ID = self._generate_task_id()
 		now = datetime.now()
-		name = task.generate_name(ID, now)
+		name = task.generate_name(cfg, ID, now)
+		meta_info = {'name': name, 'code': ID, 'timestamp': now}
+		configname = cfg.pull(self._configname_key, None, silent=True)
+		if configname is not None:
+			meta_info['configname'] = configname
+		task.update_meta_info(**meta_info)
 
 		frame = self._TaskFrame(ID=ID, name=name, timestamp=now, config=cfg, task=task)
+		if base is not None:
+			base_frame = self._find_frame(base)
+			frame.parent = base_frame.ID
+			if base_frame.subs is None:
+				base_frame.subs = []
+			frame.task.add_dependency(base_frame.task)
 
 		self.tasks.append(frame)
 		return frame
 
 
-	def create_sub(self, ident: int | str, task_key: str):
-		raise NotImplementedError # TODO
+	def create_sub(self, base: int | str, task_key: str):
+		frame = self._find_frame(base)
+		sub_frame = self._create_task(frame.config, task_key=task_key)
+
+		sub_frame.parent = frame.ID
+		if frame.subs is None:
+			frame.subs = []
+		frame.subs.append(sub_frame.ID)
+		return sub_frame.ID
 
 
-	def create_task(self, cfg: str | dict | fig.Configuration, task_key: str = 'task') -> int:
-		if isinstance(cfg, str):
-			cfg = fig.create_config(cfg)
-		elif isinstance(cfg, dict):
-			cfg = fig.create_config(**cfg)
+	_configname_key = 'configname'
+	def create_task(self, raw: str | dict | fig.Configuration, task_key: str = 'task', base: int | str = None) -> int:
+		if isinstance(raw, str):
+			cfg = fig.create_config(raw)
+			cfg.push(self._configname_key, raw, silent=True, overwrite=False)
+		elif isinstance(raw, dict):
+			cfg = fig.create_config(**raw)
+		else:
+			cfg = raw
 		assert isinstance(cfg, fig.Configuration), f'Invalid config type: {cfg} ({type(cfg)})'
 
-		frame = self._create_task(cfg, task_key=task_key)
+		frame = self._create_task(cfg, task_key=task_key, base=base)
 		return frame.ID
 
 
@@ -124,7 +143,7 @@ class Manager(fig.Configurable):
 	def complete_task(self, ident: int | str):
 		frame = self._find_frame(ident)
 		out = frame.task.complete()
-		return {'id': frame.ID, 'out': out}
+		return {'code': frame.ID, 'out': out}
 
 
 	def task_status(self, ident: int | str):
@@ -132,10 +151,15 @@ class Manager(fig.Configurable):
 		return frame.task.status()
 
 
+	def task_response(self, ident: int | str):
+		frame = self._find_frame(ident)
+		return frame.task.get_response()
+
+
 	def report(self, limit: int = 5, status: bool = False):
-		limit = min(limit, len(self.tasks))
+		limit = len(self.tasks) if limit is None else min(limit, len(self.tasks))
 		frames = sorted(self.tasks, key=lambda j: j.timestamp, reverse=True)[:limit]
-		report = [{'id': frame.ID, 'name': frame.name, 'timestamp': frame.timestamp} for frame in frames]
+		report = [frame.task.meta().copy() for frame in frames]
 		if status:
 			for frame, info in zip(frames, report):
 				info['status'] = frame.task.status()

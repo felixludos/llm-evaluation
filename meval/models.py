@@ -56,9 +56,11 @@ class DefaultRunner(Runner):
 		input_ids = self.tokenizer.encode(text, return_tensors='pt').to(self.model.device)
 		# with torch.no_grad():
 		output = self.model.generate(input_ids, **params)
-		num_input_tokens, num_output_tokens = input_ids.size(1), output.size(1)
-		response = self.tokenizer.decode(output[0], skip_special_tokens=True)
-		return {'response': response, 'inp_tok': num_input_tokens, 'out_tok': num_output_tokens}
+		num_input_tokens = input_ids.size(1)
+		generated = output[0][num_input_tokens:]
+		num_output_tokens = len(generated)
+		response = self.tokenizer.decode(generated, skip_special_tokens=True)
+		return {'prompt': text, 'response': response, 'inp_tok': num_input_tokens, 'out_tok': num_output_tokens}
 
 
 	# def get_probs(self):

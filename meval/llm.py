@@ -1,6 +1,6 @@
 from .imports import *
 
-from .tasks import Task, ResourceAware, ExpectedResources, ExpectedIterations, Chainable, PersistentTask
+from .tasks import Task, ResourceAware, ExpectedResources, ExpectedIterations, Chainable, PersistentTask, Subtask
 from . import util
 
 
@@ -25,8 +25,11 @@ class DummyTask(ExpectedResources, fig.Configurable):
 
 @fig.component('loader')
 class LoadTask(ExpectedResources, fig.Configurable):
-	def __init__(self, runner, **kwargs):
+	def __init__(self, runner, expected_duration=None, expected_gpu=None, **kwargs):
+		if isinstance(expected_duration, (int, float)):
+			expected_duration = timedelta(seconds=expected_duration)
 		super().__init__(**kwargs)
+		self.expected_duration = expected_duration
 		self.runner = runner
 
 
@@ -35,7 +38,7 @@ class LoadTask(ExpectedResources, fig.Configurable):
 
 
 
-class AbstractGenerateTask(Chainable, ExpectedResources, fig.Configurable):
+class AbstractGenerateTask(Subtask, ExpectedResources, fig.Configurable):
 	def __init__(self, generate_args=None, template: str = None, tmplpath: Path | str = None, **kwargs):
 		if tmplpath is not None:
 			tmplpath = Path(tmplpath)
@@ -87,7 +90,7 @@ class GenerateTask(AbstractGenerateTask):
 
 		def put(self, value):
 			if not self.next_tokens_are_prompt or not self.skip_prompt:
-				self.num_tokens += len(value[0])
+				self.num_tokens += len(value)
 			return super().put(value)
 
 
@@ -111,7 +114,7 @@ class GenerateTask(AbstractGenerateTask):
 		generate_args = util.deep_update(getattr(self.runner, 'generate_args', {}), self.generate_args)
 		if self.as_stream:
 			self.stream = self._Stream(self.runner.tokenizer, skip_prompt=True)
-			generate_args['stream'] = self.stream
+			generate_args['streamer'] = self.stream
 		self.response = self.runner.get_response(self._to_prompt(self.text), generate_args)
 
 
@@ -127,7 +130,7 @@ class GenerateTask(AbstractGenerateTask):
 
 
 	def status(self, fast: bool = False):
-		progress = super().status(fast=fast)
+		progress = super().status()
 		if self.stream is not None:
 			progress['tokens'] = self.stream.num_tokens
 			if 'duration' in progress:

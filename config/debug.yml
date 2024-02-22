@@ -1,8 +1,9 @@
 
+_base: [quick-llm]
+
 _meta.script_name: start-server
 
-#app._type: manager-server
-app._type: llm-server
+#server._type: manager-server
 
 manager._type: task-manager
 

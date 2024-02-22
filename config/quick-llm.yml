@@ -1,0 +1,10 @@
+
+
+server._type: llm-server
+
+load_name: phi2
+
+generate_name: hfgen
+
+
+
