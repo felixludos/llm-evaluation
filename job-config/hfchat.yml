@@ -1,0 +1,9 @@
+
+
+task._type: chatgen
+
+generate_args:
+  max_new_tokens: 500
+#  max_time: 30
+
+

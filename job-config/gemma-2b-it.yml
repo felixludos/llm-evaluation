@@ -1,0 +1,6 @@
+
+_base: [model/gemma]
+
+model_id: google/gemma-2b-it
+
+expected_duration: 85

@@ -141,6 +141,18 @@ class GenerateTask(AbstractGenerateTask):
 
 
 
+@fig.component('chatgen')
+class ChatTask(GenerateTask):
+	def _to_prompt(self, text: str = None, **inputs: str):
+		tokenizer = self.runner.tokenizer
+		chat = [
+			{"role": "user", "content": super()._to_prompt(text, **inputs)},
+		]
+		prompt = tokenizer.apply_chat_template(chat, tokenize=False, add_generation_prompt=True)
+		return prompt
+
+
+
 @fig.component('benchmark')
 class BenchmarkTask(ExpectedIterations, PersistentTask, AbstractGenerateTask):
 	def __init__(self, path: str | Path, outpath=None, generate_args=None, lazy_loading=False,
