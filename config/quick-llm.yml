@@ -2,9 +2,11 @@
 
 server._type: llm-server
 
-load_name: phi2
+#load_name: phi2
+load_name: gemma-2b-it
 
-generate_name: hfgen
+#generate_name: hfgen
+generate_name: hfchat
 
 
 

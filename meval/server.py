@@ -148,6 +148,7 @@ class LLM_Server(Manager_Server):
 		if not status['is_done']:
 			if block:
 				self.manager.complete_task(code)
+				response = self.manager.task_response(code)
 			elif not status['is_running']:
 				self.manager.start_task(code)
 		else:
