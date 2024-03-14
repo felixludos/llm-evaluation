@@ -5,6 +5,7 @@ __pycache__/
 
 .idea/
 
+extra/
 out-data/
 
 # C extensions

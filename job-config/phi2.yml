@@ -1,31 +1,10 @@
 
-task._type: loader
-
-runner._type: default-huggingface
+_base: [model/common]
 
 model_id: microsoft/phi-2
 
 expected_duration: 226
 
-device: cuda
-
-4bit: no
-8bit: no
-
-model_args:
-  torch_dtype: auto
-  trust_remote_code: yes
-  device_map: <>device
-  load_in_4bit: <>4bit
-  load_in_8bit: <>8bit
-
-tokenizer_args:
-  trust_remote_code: yes
-  device_map: <>device
-
-generate_args:
-  max_new_tokens: 50
-  max_time: 30
 
 
 

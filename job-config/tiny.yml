@@ -1,0 +1,6 @@
+
+_base: [model/common]
+
+model_id: roneneldan/TinyStories-1M
+
+tokenizer_id: EleutherAI/gpt-neo-125M

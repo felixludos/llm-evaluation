@@ -17,12 +17,14 @@ class Runner(fig.Configurable):
 
 @fig.component('default-huggingface')
 class DefaultRunner(Runner):
-	def __init__(self, model_id: str, model_args=None, tokenizer_args=None, generate_args=None, **kwargs):
+	def __init__(self, model_id: str, model_args=None, tokenizer_args=None, generate_args=None,
+				 tokenizer_id: str = None, **kwargs):
 		super().__init__(**kwargs)
 		self.model = None
 		self.tokenizer = None
 
 		self.model_id = model_id
+		self.tokenizer_id = tokenizer_id or model_id
 		self.model_args = model_args or {}
 		self.tokenizer_args = tokenizer_args or {}
 		self.generate_args = generate_args or {}
@@ -33,12 +35,13 @@ class DefaultRunner(Runner):
 			return
 
 		model_id = self.model_id
+		tokenizer_id = self.tokenizer_id
 		model_args = self.model_args
 		tokenizer_args = self.tokenizer_args
 
 		# torch_dtype=torch.bfloat16
 		model = AutoModelForCausalLM.from_pretrained(model_id, **model_args)
-		tokenizer = AutoTokenizer.from_pretrained(model_id, **tokenizer_args)
+		tokenizer = AutoTokenizer.from_pretrained(tokenizer_id, **tokenizer_args)
 
 		self.tokenizer = tokenizer
 		self.model = model

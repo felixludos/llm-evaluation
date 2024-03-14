@@ -78,6 +78,14 @@ class AbstractGenerateTask(Subtask, ExpectedResources, fig.Configurable):
 		return self.template.format(text)
 
 
+	def chain(self, loader: LoadTask):
+		if loader.runner is None:
+			raise ValueError("Loader has no runner")
+		self.runner = loader.runner
+		self.generate_args = util.deep_update(getattr(self.runner, 'generate_args', {}), self.generate_args)
+		return self
+
+
 
 @fig.component('generate')
 class GenerateTask(AbstractGenerateTask):
@@ -122,13 +130,6 @@ class GenerateTask(AbstractGenerateTask):
 		return self.response
 
 
-	def chain(self, loader: LoadTask):
-		if loader.runner is None:
-			raise ValueError("Loader has no runner")
-		self.runner = loader.runner
-		return self
-
-
 	def status(self, fast: bool = False):
 		progress = super().status()
 		if self.stream is not None:
@@ -155,9 +156,8 @@ class ChatTask(GenerateTask):
 
 @fig.component('benchmark')
 class BenchmarkTask(ExpectedIterations, PersistentTask, AbstractGenerateTask):
-	def __init__(self, path: str | Path, outpath=None, generate_args=None, lazy_loading=False,
+	def __init__(self, path: str | Path, outpath=None, lazy_loading=False,
 				 input_keys=('linenum',), **kwargs):
-		generate_args = generate_args or {}
 		path = Path(path)
 		assert path.exists(), f'Path does not exist: {path}'
 		outpath = Path(outpath)
@@ -165,7 +165,6 @@ class BenchmarkTask(ExpectedIterations, PersistentTask, AbstractGenerateTask):
 			raise ValueError(f"Lazy loading only supported for {{txt, jsonl, csv}} files, not {path.suffix}")
 		super().__init__(**kwargs)
 		self.lazy_loading = lazy_loading
-		self.generate_args = generate_args
 		self.runner = None
 		self.path = path
 		self.outpath = outpath
@@ -175,14 +174,6 @@ class BenchmarkTask(ExpectedIterations, PersistentTask, AbstractGenerateTask):
 		self.first_item = None
 		self.total_prompt_tokens = 0
 		self.total_response_tokens = 0
-
-
-	def chain(self, loader: LoadTask):
-		if loader.runner is None:
-			raise ValueError("Loader has no runner")
-		self.runner = loader.runner
-		self.generate_args = util.deep_update(getattr(self.runner, 'generate_args', {}), self.generate_args)
-		return self
 
 
 	def reset(self):
@@ -297,6 +288,24 @@ class BenchmarkTask(ExpectedIterations, PersistentTask, AbstractGenerateTask):
 			response = self.runner.get_response(prompt, self.generate_args)
 			self._process_response(item, prompt, response)
 			yield
+
+
+
+class FewShotTask(BenchmarkTask):
+	def __init__(self, num_shot: int = 10, shot_path: Path | str = None, seed: int = 7427466391, **kwargs):
+		if shot_path is not None and num_shot > 0:
+			shot_path = Path(shot_path)
+			assert shot_path.exists(), f'Path does not exist: {shot_path}'
+		super().__init__(**kwargs)
+		self.num_shot = num_shot
+		self.shot_path = shot_path
+		self.seed = seed
+		self.rng = random.Random(seed)
+
+
+	def _select_shots(self, items: list):
+		return self.rng.sample(items, self.num_shot)
+
 
 
 
