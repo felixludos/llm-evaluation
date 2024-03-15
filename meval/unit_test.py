@@ -89,6 +89,39 @@ def test_iterative_job():
 	assert job.result is not None
 
 
+from .prompting import *
+from .util import repo_root
+
+
+
+def test_few_shot():
+
+	shot_source = PromptFile(repo_root() / 'benchmarks' / 'dev.jsonl')
+
+	fewshot = FewShotPrompter(shot_source, num_shots=5, seed=11)
+
+	mogul = PromptStreamer(repo_root() / 'benchmarks' / 'eval.jsonl').include(fewshot)
+
+	src = iter(mogul)
+	ctx = next(src)
+
+	print(ctx)
+
+	prompt = ctx['prompt']
+
+	assert ctx['seed'] == 1999951809
+	assert ctx['shot_IDs'] == [579, 152, 342, 707, 908]
+	assert ctx['linenum'] == 0
+
+	print(prompt)
+
+
+
+
+
+
+
+
 
 
 

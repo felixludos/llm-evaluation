@@ -45,8 +45,7 @@ class AbstractGenerateTask(Subtask, ExpectedResources, fig.Configurable):
 		assert template is None or tmplpath is None, 'Cannot specify both template and tmplpath'
 		assert tmplpath is None or tmplpath.exists(), f'Template path does not exist: {tmplpath}'
 		if tmplpath is not None:
-			with open(tmplpath, 'r') as f:
-				template = f.read()
+			template = tmplpath.read_text()
 		super().__init__(**kwargs)
 		self.generate_args = generate_args or {}
 		self.template = template
@@ -292,19 +291,36 @@ class BenchmarkTask(ExpectedIterations, PersistentTask, AbstractGenerateTask):
 
 
 class FewShotTask(BenchmarkTask):
-	def __init__(self, num_shot: int = 10, shot_path: Path | str = None, seed: int = 7427466391, **kwargs):
+	def __init__(self, num_shot: int = 10, *, shot_path: Path | str = None, seed: int = 7427466391,
+				 shot_template: str = None, shot_tmplpath: Path | str = None, shot_delimiter: str = '\n\n',
+				 template: str = None, tmplpath: Path | str = None, **kwargs):
+		if template is None and tmplpath is None:
+			template = '{shots}{shot_delimiter}{question}'
 		if shot_path is not None and num_shot > 0:
 			shot_path = Path(shot_path)
 			assert shot_path.exists(), f'Path does not exist: {shot_path}'
-		super().__init__(**kwargs)
+		if shot_tmplpath is not None:
+			shot_tmplpath = Path(shot_tmplpath)
+		assert shot_template is None or shot_tmplpath is None, 'Cannot specify both shot_tmplpath and shot_template'
+		assert shot_tmplpath is None or shot_tmplpath.exists(), f'Template path does not exist: {shot_tmplpath}'
+		if shot_tmplpath is not None:
+			shot_template = shot_tmplpath.read_text()
+		if shot_template is None:
+			shot_template = '{question}\n{answer}'
+		super().__init__(template=template, tmplpath=tmplpath, **kwargs)
+		self.rng = random.Random(seed)
 		self.num_shot = num_shot
 		self.shot_path = shot_path
+		self.shot_template = shot_template
+		self.shot_delimiter = shot_delimiter
 		self.seed = seed
-		self.rng = random.Random(seed)
 
 
 	def _select_shots(self, items: list):
 		return self.rng.sample(items, self.num_shot)
+
+
+
 
 
 
