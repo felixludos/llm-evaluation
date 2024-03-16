@@ -32,6 +32,10 @@ class PromptFile:
 		return len(self.input_items)
 
 
+	def __iter__(self):
+		yield from self.input_items
+
+
 	_line_number_key = 'linenum'
 	def _load_input_items(self) -> Iterable[dict]:
 		for i, item in enumerate(self._load_unnumbered_input_items()):
@@ -135,17 +139,17 @@ class TemplatePrompter(Template, fig.Configurable):
 
 @fig.component('few-shot')
 class FewShotPrompter(fig.Configurable, ToolKit):
-	def __init__(self, shots_path: str | Path | PromptFile, num_shots: int = 10, *, seed: int = None,
+	def __init__(self, shots_file: str | Path | PromptFile, num_shots: int = 10, *, seed: int = None,
 				 shot_template: str | Template = '{question}\n{answer}',
 				 delimiter: str = '\n\n', **kwargs):
-		if isinstance(shots_path, (str, Path)):
-			shots_path = PromptFile(shots_path, lazy_loading=False)
+		if isinstance(shots_file, (str, Path)):
+			shots_file = PromptFile(shots_file, lazy_loading=False)
 		if isinstance(shot_template, str):
 			shot_template = TemplatePrompter(shot_template)
 		if shot_template is None:
 			shot_template = DefaultPrompter()
 		super().__init__(**kwargs)
-		self.fewshots = shots_path
+		self.fewshots = shots_file
 		self.master_seed = seed
 		self.rng = random.Random(seed)
 		self.num_shots = num_shots
@@ -154,18 +158,10 @@ class FewShotPrompter(fig.Configurable, ToolKit):
 
 
 	@tool('prompt')
-	def get_prompt(self, question_shot: str, shots: str, delimiter: str):
+	def get_prompt(self, item: dict, shots: str, delimiter: str = None):
+		delimiter = delimiter or self.delimiter
+		question_shot = self.render_shot(self.num_shots, item, answer='')
 		return f'{shots}{delimiter}{question_shot}'
-
-
-	@tool('question_shot')
-	def get_question_shot(self, item: dict):
-		return self.render_shot(self.num_shots, item, answer='')
-
-
-	@tool('delimiter')
-	def get_delimiter(self):
-		return self.delimiter
 
 
 	def render_shot(self, idx: int, item: dict, **manual):
@@ -174,7 +170,8 @@ class FewShotPrompter(fig.Configurable, ToolKit):
 
 
 	@tool('shots')
-	def get_shots(self, shot_items: list[dict], delimiter: str):
+	def format_shots(self, shot_items: list[dict], delimiter: str = None):
+		delimiter = delimiter or self.delimiter
 		lines = []
 		for idx, item in enumerate(shot_items):
 			lines.append(self.render_shot(idx, item))
@@ -198,6 +195,10 @@ class FewShotPrompter(fig.Configurable, ToolKit):
 
 
 
+@fig.component('chain-of-thought')
+class ChainOfThought(FewShotPrompter):
+	def __init__(self, shot_template: str | Template = '{question}\n{rationale}\nFinal answer: {answer}', **kwargs):
+		super().__init__(shot_template=shot_template, **kwargs)
 
 
 

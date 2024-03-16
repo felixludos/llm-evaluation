@@ -91,16 +91,18 @@ def test_iterative_job():
 
 from .prompting import *
 from .util import repo_root
-
+from .benchmarks import GSM8k
 
 
 def test_few_shot():
 
-	shot_source = PromptFile(repo_root() / 'benchmarks' / 'dev.jsonl')
+	# shot_source = PromptFile(repo_root() / 'benchmarks' / 'dev.jsonl')
+	shot_source = GSM8k(repo_root() / 'benchmarks' / 'dev.jsonl')
+	eval_source = GSM8k(repo_root() / 'benchmarks' / 'eval.jsonl')
 
-	fewshot = FewShotPrompter(shot_source, num_shots=5, seed=11)
+	fewshot = ChainOfThought(shots_file=shot_source, num_shots=5, seed=11)
 
-	mogul = PromptStreamer(repo_root() / 'benchmarks' / 'eval.jsonl').include(fewshot)
+	mogul = PromptStreamer(eval_source).include(fewshot)
 
 	src = iter(mogul)
 	ctx = next(src)
