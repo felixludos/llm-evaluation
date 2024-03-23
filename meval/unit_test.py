@@ -94,6 +94,22 @@ from .util import repo_root
 from .benchmarks import GSM8k
 
 
+def test_gsm8k():
+
+	src = GSM8k(repo_root() / 'benchmarks' / 'dev.jsonl')
+
+	src.load()
+
+	print(src)
+
+
+
+
+
+
+
+
+
 def test_few_shot():
 
 	# shot_source = PromptFile(repo_root() / 'benchmarks' / 'dev.jsonl')
@@ -116,12 +132,6 @@ def test_few_shot():
 	assert ctx['linenum'] == 0
 
 	print(prompt)
-
-
-
-
-
-
 
 
 

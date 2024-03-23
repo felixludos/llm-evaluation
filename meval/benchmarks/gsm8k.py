@@ -1,27 +1,31 @@
+from typing import Any
 import re
 
-from ..prompting import PromptFile
+from .base import PromptFile
 
 
 
 class GSM8k(PromptFile):
-	def _load_input_items(self):
-		for item in super()._load_input_items():
-			full = item['answer']
+	def _load_data(self) -> dict[str, list[Any]]:
 
-			# extract all substrings between "<<" and ">>"
-			expr = re.findall(r'<<.*?>>', full)
-			expr = [e[2:-2] for e in expr]
+		data = super()._load_data()
 
-			# filter out all substrings between "<<" and ">>"
-			full = re.sub(r'<<.*?>>', '', full)
+		full = data['answer']
 
-			rationale, answer = full.split('\n####')
-			rationale = rationale.strip()
-			answer = answer.strip()
+		expr = [re.findall(r'<<.*?>>', line) for line in full]
+		expr = [[e[2:-2] for e in line] for line in expr]
 
-			yield {**item, 'rationale': rationale, 'answer': answer, 'expr': expr}
+		full = [re.sub(r'<<.*?>>', '', line) for line in full]
 
+		rationale, answer = zip(*[line.split('\n####') for line in full])
+		rationale = [line.strip() for line in rationale]
+		answer = [line.strip() for line in answer]
+
+		data['rationale'] = rationale
+		data['answer'] = answer
+		data['expr'] = expr
+
+		return data
 
 
 

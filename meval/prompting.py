@@ -5,93 +5,12 @@ from omniply import AbstractGig
 
 from omniply import Context
 from omniply.core.gadgets import SingleGadgetBase, GadgetFailure
-from omniply.apps import Template, DictGadget, StreamMogul
+from omniply.apps import Template, DictGadget
 
 
 
 
-class PromptFile:
-	def __init__(self, path: Path | str, *, lazy_loading=False, **kwargs):
-		path = Path(path)
-		assert path.exists(), f'Path does not exist: {path}'
-		if lazy_loading:
-			raise NotImplementedError('not currently supported')
-		if lazy_loading and path.suffix not in {'.txt', '.jsonl', '.csv'}:
-			raise ValueError(f"Lazy loading only supported for {{txt, jsonl, csv}} files, not {path.suffix}")
-		super().__init__(**kwargs)
-		self.path = path
-		self.input_items = list(self._load_input_items())
-		self.lazy_loading = lazy_loading
-
-	def __getitem__(self, idx):
-		'''doesn't announce the item (it won't be a context)'''
-		return self.input_items[idx]
-
-
-	def __len__(self):
-		return len(self.input_items)
-
-
-	def __iter__(self):
-		yield from self.input_items
-
-
-	_line_number_key = 'linenum'
-	def _load_input_items(self) -> Iterable[dict]:
-		for i, item in enumerate(self._load_unnumbered_input_items()):
-			if self._line_number_key is not None and self._line_number_key not in item:
-				item[self._line_number_key] = i
-			yield item
-	def _load_unnumbered_input_items(self) -> Iterable[dict]:
-		assert self.path.exists(), f'Path does not exist: {self.path}'
-
-		if self.path.suffix == '.jsonl':
-			with self.path.open('r') as f:
-				for line in f:
-					obj = json.loads(line.strip())
-					yield {'text': obj} if isinstance(obj, str) else obj
-		elif self.path.suffix == '.txt':
-			with self.path.open('r') as f:
-				for line in f:
-					yield {'text': line.strip()}
-		elif self.path.suffix == '.csv':
-			with self.path.open('r') as f:
-				reader = csv.DictReader(f)
-				yield from reader
-
-		elif self.path.suffix == '.json':
-			full = json.load(self.path.open('r'))
-			assert isinstance(full, (list, dict)), f'Invalid JSON file: {self.path}'
-			if isinstance(full, list):
-				for obj in full:
-					yield {'text': obj} if isinstance(obj, str) else obj
-			else:
-				for key, obj in full.items():
-					if isinstance(obj, str):
-						obj = {'text': obj}
-					obj['_key'] = key
-					yield obj
-
-		else:
-			raise ValueError(f'Unsupported file type: {self.path.suffix}')
-
-
-
-class ItemContext(Context):
-	def __init__(self, item: dict, **kwargs):
-		super().__init__(**kwargs)
-		assert 'item' not in kwargs, f'Cannot specify item in ItemContext: {kwargs}'
-		self._item = item
-		self.include(DictGadget(item, item=item))
-
-
-	@property
-	def item(self):
-		return self._item
-
-
-
-class PromptStreamer(PromptFile, StreamMogul):
+class PromptStreamer(PromptFile):
 	_context_type = ItemContext
 
 
