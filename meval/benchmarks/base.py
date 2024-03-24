@@ -27,11 +27,12 @@ class IndexContext(Context):
 
 
 class PromptFile(Table, GuruBase):
-	def __init__(self, path: Path | str, **kwargs):
+	def __init__(self, path: Path | str, autoload: bool = True, **kwargs):
 		if path is not None:
 			path = Path(path)
 		super().__init__(**kwargs)
 		self.path = path
+		self._autoload = autoload
 
 
 	def __repr__(self):
@@ -49,6 +50,10 @@ class PromptFile(Table, GuruBase):
 	def _guide_sparks(self):
 		self.load()
 		yield from range(self.number_of_rows)
+
+
+	def __getitem__(self, index: int):
+		return self._Gift(index).include(self)
 
 
 	@staticmethod
@@ -83,7 +88,13 @@ class PromptFile(Table, GuruBase):
 			raise ValueError(f'Unsupported file type: {path.suffix}')
 
 		if isinstance(rows[0], str):
-			return [{default_text_key: row} for row in rows]
+			rows = [{default_text_key: row} for row in rows]
+
+		if any('prompt' in row for row in rows):
+			print(f'Warning: "prompt" key found in {path}, replacing it with {default_text_key}')
+			for row in rows:
+				if 'prompt' in row:
+					row[default_text_key] = row.pop('prompt')
 		return rows
 
 

@@ -104,24 +104,16 @@ def test_gsm8k():
 
 
 
-
-
-
-
-
-
 def test_few_shot():
 
 	# shot_source = PromptFile(repo_root() / 'benchmarks' / 'dev.jsonl')
-	shot_source = GSM8k(repo_root() / 'benchmarks' / 'dev.jsonl')
-	eval_source = GSM8k(repo_root() / 'benchmarks' / 'eval.jsonl')
+	shot_source = GSM8k(repo_root() / 'benchmarks' / 'dev.jsonl').load()
+	eval_source = GSM8k(repo_root() / 'benchmarks' / 'eval.jsonl').load()
 
-	fewshot = ChainOfThought(shots_file=shot_source, num_shots=5, seed=11)
+	cot = ChainOfThought(shots_file=shot_source, num_shots=5, seed=11)
 
-	mogul = PromptStreamer(eval_source).include(fewshot)
-
-	src = iter(mogul)
-	ctx = next(src)
+	ctx = next(eval_source)
+	ctx.include(cot)
 
 	print(ctx)
 
@@ -129,7 +121,7 @@ def test_few_shot():
 
 	assert ctx['seed'] == 1999951809
 	assert ctx['shot_IDs'] == [579, 152, 342, 707, 908]
-	assert ctx['linenum'] == 0
+	assert ctx['index'] == 0
 
 	print(prompt)
 
