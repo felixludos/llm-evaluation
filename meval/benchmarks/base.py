@@ -6,7 +6,7 @@ from omnibelt import load_json, save_json, load_csv, load_yaml, save_yaml, load_
 
 from omniply import Context, ToolKit
 from omniply.core.gadgets import SingleGadgetBase, GadgetFailure
-from omniply.apps import Template, DictGadget, Table, GuruBase
+from omniply.apps import Template, DictGadget, Table, GodBase
 
 
 
@@ -26,7 +26,7 @@ class IndexContext(Context):
 
 
 
-class PromptFile(Table, GuruBase):
+class PromptFile(Table, GodBase):
 	def __init__(self, path: Path | str, autoload: bool = True, **kwargs):
 		if path is not None:
 			path = Path(path)
