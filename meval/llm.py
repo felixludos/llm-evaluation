@@ -276,7 +276,7 @@ class BenchmarkTask(ExpectedIterations, PersistentTask, AbstractGenerateTask):
 			self.outwriter.write('\n')
 
 
-	def _cleanup(self):
+	def _dispose(self):
 		if self.outwriter is not None:
 			self.outwriter.close()
 

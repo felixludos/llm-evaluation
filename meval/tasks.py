@@ -8,14 +8,63 @@ from threading import Thread
 
 
 
-class Task(fig.Configurable):
+class AbstractTask:
+	@property
+	def name(self):
+		raise NotImplementedError
+
+	def meta(self):
+		raise NotImplementedError
+
+	@property
+	def is_done(self):
+		raise NotImplementedError
+	@property
+	def is_running(self):
+		raise NotImplementedError
+	@property
+	def is_prepared(self):
+		raise NotImplementedError
+
+	def reset(self):
+		raise NotImplementedError
+
+	def terminate(self):
+		raise NotImplementedError
+
+	def start(self):
+		raise NotImplementedError
+
+	def complete(self, respond: bool = True):
+		raise NotImplementedError
+
+	def response(self):
+		raise NotImplementedError
+
+	def status(self):
+		raise NotImplementedError
+
+	def run(self):
+		raise NotImplementedError
+
+	def prepare(self):
+		raise NotImplementedError
+
+	def dispose(self):
+		raise NotImplementedError
+
+
+
+class ConfigTask(AbstractTask):
 	def __init__(self, name: str = None, **kwargs):
 		super().__init__(**kwargs)
 		self._meta_info = {}
 		self.name = name
-		self._task = None
-		self._is_done = False
 
+	def update_meta_info(self, **info):
+		self._meta_info.update(info)
+	def meta(self):
+		return self._meta_info
 
 	@property
 	def name(self):
@@ -23,12 +72,6 @@ class Task(fig.Configurable):
 	@name.setter
 	def name(self, value: str):
 		self._meta_info['name'] = value
-
-
-	def update_meta_info(self, **info):
-		self._meta_info.update(info)
-	def meta(self):
-		return self._meta_info
 
 
 	_default_name = '{config.pull("configname","task",silent=True)}-{str(ID).zfill(3)}'
@@ -39,13 +82,47 @@ class Task(fig.Configurable):
 		return name
 
 
+
+class ThreadTask(AbstractTask):
+	_task = None
+
+
+	def reset(self):
+		self._is_done = False
+		self._task = None
+
+
+
+class Task(AbstractTask):
+	def __init__(self, name: str = None, **kwargs):
+		super().__init__(**kwargs)
+		self._task = None
+
+	_is_done = False
+	_is_prepared = False
+	_is_disposed = False
+
+	@property
+	def is_done(self):
+		return self._is_done
+	@property
+	def is_running(self):
+		return self._task is not None and self._task.is_alive()
+	@property
+	def is_prepared(self):
+		return self._is_prepared
+	@property
+	def is_disposed(self):
+		return self._is_disposed
+
+
 	def reset(self):
 		self._is_done = False
 		self._task = None
 
 
 	def terminate(self):
-		raise NotImplementedError
+		raise NotImplementedError # TODO: implement kill thread (?)
 
 
 	def start(self): # non-blocking
@@ -61,7 +138,7 @@ class Task(fig.Configurable):
 		elif not self.is_done:
 			self.run()
 		if respond:
-			return self._get_response()
+			return self.response()
 
 
 	def response(self):
@@ -76,35 +153,50 @@ class Task(fig.Configurable):
 	@property
 	def is_running(self):
 		return self._task is not None and self._task.is_alive()
+	@property
+	def is_prepared(self):
+		return self._is_prepared
+	@property
+	def is_disposed(self):
+		return self._is_disposed
 
 
 	def status(self):
-		return {'is_done': self.is_done, 'is_running': self.is_running}
+		return {'is_done': self.is_done, 'is_running': self.is_running,
+				'is_prepared': self.is_prepared, 'is_disposed': self.is_disposed}
 
 
 	def run(self):
 		self.prepare()
 		self._run()
-		self.cleanup()
+		self.dispose()
 		self._is_done = True
 
 
 	def prepare(self):
 		'''should be agnostic to multiple calls'''
 		self._prepare()
+		self._is_prepared = True
+		return self
 
 
-	def cleanup(self):
+	def dispose(self):
 		'''should be agnostic to multiple calls'''
-		self._cleanup()
+		self._dispose()
 		self._task = None
+		self._is_disposed = True
+		return self
 
 
 	def _prepare(self):
 		pass
 
 
-	def _cleanup(self):
+	def _dispose(self):
+		pass
+
+
+	def _get_response(self):
 		pass
 
 
@@ -112,14 +204,13 @@ class Task(fig.Configurable):
 		raise NotImplementedError
 
 
-	def get_response(self):
-		if not self.is_done:
-			raise JobIncompleteError('Job not complete')
-		return self._get_response()
 
-
-	def _get_response(self):
-		pass
+class SinglePreparation(Task):
+	def prepare(self):
+		'''changes prepare to only run once, and from then on be a null-op'''
+		if not self.is_prepared:
+			super().prepare()
+		return self
 
 
 
@@ -302,8 +393,8 @@ class IterativeTask(Task):
 		return self._is_done and self._stream is None
 
 
-	def cleanup(self):
-		super().cleanup()
+	def dispose(self):
+		super().dispose()
 		self._run_iterations = None
 
 
