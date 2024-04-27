@@ -4,7 +4,7 @@ from omnibelt import Class_Registry, pformat
 
 
 _primitive = (str, int, float, bool, type(None))
-PRIMITIVE = Union[None, _primitive[:-1]]
+PRIMITIVE = Union[None, *_primitive[:-1]]
 JSONABLE = Union[PRIMITIVE, list['JSONABLE'], dict[str, 'JSONABLE']]
 JSONOBJ = dict[str, JSONABLE]
 
@@ -20,62 +20,6 @@ class AbstractDescribable:
 	@classmethod
 	def display(cls, desc: DESCRIPTION, *, detail: int | None = None) -> str:
 		raise NotImplementedError
-
-
-
-class RegisteredDescribable(AbstractDescribable):
-	'''can be loaded from a description'''
-	def __init_subclass__(cls, name: str = None, **kwargs):
-		super().__init_subclass__(**kwargs)
-		describables_registry.register(cls, name=name)
-
-
-	def deposit(self) -> JSONOBJ:
-		'''recursively describe to produce a jsonable representation'''
-		return describables_registry.deposit(self)
-
-
-
-class AbstractRecoverable(AbstractDescribable):
-	'''can be loaded from a deposit'''
-	@classmethod
-	def from_description(cls, description: DESCRIPTION) -> 'AbstractDescribable':
-		raise NotImplementedError
-
-
-
-class Describable(RegisteredDescribable):
-	def display_self(self, detail: int | None = None) -> str:
-		'''how many levels of detail to display'''
-		return describables_registry.display(self, detail=detail)
-
-
-	def __str__(self) -> str:
-		return self.display_self()
-
-
-	def __repr__(self) -> str:
-		return self.display_self(detail=1)
-
-
-	_display_template: str = ('{cls.__name__}({'
-							  '", ".join(f"{k}={v}" for k, v in desc.items()) '
-							  'if detail is None or detail > 0 '
-							  'else f"{len(desc)} detail" + "s" if len(desc) != 1 else ""'
-							  '})')
-	@classmethod
-	def display(cls, desc: DESCRIPTION, *, detail: int | None = None) -> str:
-		if detail is not None:
-			desc = {k: describables_registry.display(v, detail=detail - 1) for k, v in desc.items()}
-		return pformat(cls._display_template, cls=cls, desc=desc, detail=detail, **desc)
-
-
-	def describe(self) -> DESCRIBABLE:
-		'''
-		should be overridden to include any necessary data
-		(values don't have to be jsonable, as long as attrs are describable)
-		'''
-		return {}
 
 
 class DescriptionRegistry(Class_Registry):
@@ -151,6 +95,64 @@ class DescriptionRegistry(Class_Registry):
 
 
 describables_registry = DescriptionRegistry()
+
+
+
+class RegisteredDescribable(AbstractDescribable):
+	'''can be loaded from a description'''
+	def __init_subclass__(cls, name: str = None, **kwargs):
+		super().__init_subclass__(**kwargs)
+		describables_registry.register(cls, name=name)
+
+
+	def deposit(self) -> JSONOBJ:
+		'''recursively describe to produce a jsonable representation'''
+		return describables_registry.deposit(self)
+
+
+
+class AbstractRecoverable(AbstractDescribable):
+	'''can be loaded from a deposit'''
+	@classmethod
+	def from_description(cls, description: DESCRIPTION) -> 'AbstractDescribable':
+		raise NotImplementedError
+
+
+
+class Describable(RegisteredDescribable):
+	def display_self(self, detail: int | None = None) -> str:
+		'''how many levels of detail to display'''
+		return describables_registry.display(self, detail=detail)
+
+
+	def __str__(self) -> str:
+		return self.display_self()
+
+
+	def __repr__(self) -> str:
+		return self.display_self(detail=1)
+
+
+	# _display_template: str = ('{cls.__name__}({'
+	# 						  '", ".join(f"{k}={v}" for k, v in desc.items()) '
+	# 						  'if detail is None or detail > 0 '
+	# 						  'else f"{len(desc)} detail" + "s" if len(desc) != 1 else ""'
+	# 						  '})')
+	@classmethod
+	def display(cls, desc: DESCRIPTION, *, detail: int | None = None) -> str:
+		if detail is not None:
+			desc = {k: describables_registry.display(v, detail=detail - 1) for k, v in desc.items()}
+		# return pformat(cls._display_template, cls=cls, desc=desc, detail=detail, **desc)
+		items = ', '.join(f'{k}={v!r}' for k, v in desc.items())
+		return f'{cls.__name__}({items})'
+
+
+	def describe(self) -> DESCRIBABLE:
+		'''
+		should be overridden to include any necessary data
+		(values don't have to be jsonable, as long as attrs are describable)
+		'''
+		return {}
 
 
 def describe(obj: DESCRIBABLE) -> DESCRIPTION:

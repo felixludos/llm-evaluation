@@ -1,28 +1,13 @@
 
+_base: [quick-llm]
 
-_meta.script_name: test-chat
-
-#_base: [quick-llm]
-
-#_meta.script_name: start-server
+_meta.script_name: start-server
 
 #server._type: manager-server
 
-#worker._type: hf
+manager._type: task-manager
 
-
-
-
-
-
-
-
-
-#manager._type: task-manager
-
-#config_root._type: default-config-root
-
-
+config_root._type: default-config-root
 
 
 

@@ -10,25 +10,26 @@ import csv
 import random
 import time
 import psutil
-import torch
 import asyncio
 import threading
-# import csv
 import humanize
 from pynvml.smi import nvidia_smi
 from dataclasses import dataclass
 from contextlib import nullcontext
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
-from transformers import pipeline
-from transformers import LlamaTokenizer, LlamaForCausalLM, GenerationConfig, pipeline, BitsAndBytesConfig , CodeGenTokenizer
-# from langchain.llms import HuggingFacePipeline
-# from langchain import PromptTemplate, LLMChain
-import uvicorn
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import joblib
 
-from transformers.utils.logging import disable_progress_bar
+# from pydantic import BaseModel
+# import joblib
+
+
+# import torch
+# from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
+# from transformers import pipeline
+# from transformers import LlamaTokenizer, LlamaForCausalLM, GenerationConfig, pipeline, BitsAndBytesConfig , CodeGenTokenizer
+# # from langchain.llms import HuggingFacePipeline
+# # from langchain import PromptTemplate, LLMChain
+# import uvicorn
+# from fastapi import FastAPI, HTTPException
+# from transformers.utils.logging import disable_progress_bar
 
 # from huggingface_hub import WebhooksServer, WebhookPayload
 

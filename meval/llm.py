@@ -88,7 +88,8 @@ class AbstractGenerateTask(Subtask, ExpectedResources, fig.Configurable):
 
 @fig.component('generate')
 class GenerateTask(AbstractGenerateTask):
-	class _Stream(TextStreamer):
+	# class _Stream(TextStreamer):
+	class _Stream():
 		def __init__(self, tokenizer: "AutoTokenizer", skip_prompt: bool = False, **decode_kwargs):
 			super().__init__(tokenizer=tokenizer, skip_prompt=skip_prompt, **decode_kwargs)
 			self.num_tokens = 0

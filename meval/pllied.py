@@ -1,5 +1,5 @@
 from typing import Iterable, Any
-from omniply import Context, ToolKit, AbstractGaggle, AbstractGig, AbstractGadget
+from omniply import Context, ToolKit, AbstractGaggle, AbstractGame, AbstractGadget
 from .tasks import Task, Chainable
 
 
@@ -44,7 +44,7 @@ class ContextTask(Chainable, AbstractStructuredTask):
 	def chain(self, task: 'ContextTask'):
 		if self._chain_context:
 
-		self._tools.extend(task.gadgetry())
+			self._tools.extend(task.gadgetry())
 		return self
 
 
