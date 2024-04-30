@@ -1,183 +1,182 @@
 from .imports import *
 
-from .tasks import Task, ResourceAware, ExpectedResources, ExpectedIterations
-from .util import App, post, get, config_data_root, data_root
-from .manager import Manager
-# from .models import Runner
+import os
+import subprocess
+import socket
+
+from .abstract import AbstractTask, AbstractReporter
+from .reporters import ReporterBase
 
 
 
-@fig.component('manager-server')
-class Manager_Server(App):
-	def __init__(self, manager: Manager, **kwargs):
-		super().__init__(**kwargs)
-		self.manager = manager
+@fig.component('server-reporter')
+class ServerReporter(ReporterBase, fig.Configurable):
+	def __init__(self, ident: str, master_log: Union[str, Path] = '~/master-log.jsonl',
+				 work_root: Union[str, Path] = '~/prod/', include_config: bool = False):
+		'''name must be unique to a single job'''
+		self.master_log = Path(master_log).expanduser()
+		self.work_root = Path(work_root).expanduser()
+		self.work_dir = None
+
+		self.include_config = include_config
+		self.config = None
+
+		self.ident = ident
+		self.hostname = socket.gethostname()
 
 
-	def record_description(self):
-		self.manager.append_description({'server': {'host': self.host, 'port': self.port}})
+	def prepare(self, config: fig.Configuration) -> Path:
+		self.work_root.mkdir(exist_ok=True)
+		self.work_dir = self.work_root / f'{self.ident}'
+		assert not self.work_dir.exists(), (f'Work directory for {self.ident} on {self.hostname} already exists: '
+											f'{self.work_dir}')
+		self.work_dir.mkdir()
+		if self.include_config:
+			self.config = config.to_python()
+
+		return self.work_dir
+
+
+	def report(self, event: str, info: dict[str, JSONABLE]) -> Self:
+		with self.master_log.open('a') as f:
+			f.write(json.dumps({'time': datetime.now().isoformat(), 'event': event, 'id': self.ident, **info}) + '\n')
 		return self
 
 
-	@get
-	async def ping(self):
-		return 'pong'
-
-
-	@get
-	async def snapshot(self):
-		return ResourceAware.resource_snapshot()
-
-
-	@get
-	async def create(self, name: str, item: str = 'task', parent: str | int = None):
-		out = self.manager.create_task(name, task_key=item, base=parent)
-		return out
-
-
-	@post
-	async def custom(self, config: dict, item: str = 'task', parent: str | int = None):
-		out = self.manager.create_task(config, task_key=item, base=parent)
-		return out
-
-
-	@get
-	async def start(self, code: str | int):
-		out = self.manager.start_task(code)
-		return out
-
-
-	@get
-	async def tasks(self, limit: int = 5, status: bool = False):
-		out = self.manager.report(limit, status=status)
-		return out
-
-
-	@get
-	async def status(self, code: str | int):
-		out = self.manager.task_status(code)
-		return out
-
-
-	@get
-	async def meta(self, code: str | int):
-		out = self.manager.task_meta(code)
-		return out
-
-
-	@get
-	async def report(self, limit: int = None, status: bool = False):
-		out = self.manager.report(limit=limit, status=status)
-		return out
-
-
-	@get
-	async def terminate(self, code: str | int):
-		out = self.manager.terminate_task(code)
-		return out
-
-
-	@get
-	async def complete(self, code: str | int):
-		out = self.manager.complete_task(code)
-		return out
-
-
-	@get
-	async def response(self, code: str | int):
-		out = self.manager.task_response(code)
-		return out
-
-
-	@get
-	async def chain(self, prev: str | int, link: str | int):
-		out = self.manager.chain_tasks(prev, link)
-		return out
+	def report_launch(self, info: dict[str, JSONABLE]) -> Self:
+		assert self.work_dir is not None and self.work_dir.exists(), ('Work directory must be prepared before launch '
+																	  '(call `.prepare(config)`)')
+		info['path'] = str(self.work_dir)
+		if self.config is not None:
+			info['config'] = self.config
+		return super().report_launch(info)
 
 
 
-@fig.component('llm-server')
-class LLM_Server(Manager_Server):
-	def __init__(self, load_name: str = None, generate_name: str = None, **kwargs):
-		super().__init__(**kwargs)
-		self.load_name = load_name
-		self.generate_name = generate_name
-		self._load_id = None
-		self._gen_ids = {}
-
-
-	@get
-	def load(self, name: str = None, block: bool = False):
-		if name is None:
-			name = self.load_name
-
-		if self._load_id is None:
-			self._load_id = self.manager.create_task(name)
-
-		status = self.manager.task_status(self._load_id)
-
-		if not status['is_done']:
-			if block:
-				self.manager.complete_task(self._load_id)
-			elif not status['is_running']:
-				self.manager.start_task(self._load_id)
-
-		return {'code': self._load_id, 'status': self.manager.task_status(self._load_id)}
-
-
-	@get
-	def loadid(self):
-		return self._load_id
-
-
-	@post
-	def generate(self, text: str = None, *, block: bool = False, code: int = None,
-				 generate_args: dict = None, name: str = None):
-		if code is None:
-			if name is None:
-				name = self.generate_name
-			info = dict(_base=name, generate_args=generate_args)
-			if text is None and generate_args is not None and 'text' in generate_args:
-				text = generate_args.pop('text')
-			if text is not None:
-				info['text'] = text
-			code = self.manager.create_task(info, base=self._load_id)
-
-		response = None
-		status = self.manager.task_status(code)
-		if not status['is_done']:
-			if block:
-				self.manager.complete_task(code)
-				response = self.manager.task_response(code)
-			elif not status['is_running']:
-				self.manager.start_task(code)
+@fig.component('cluster-reporter')
+class ClusterReporter(ServerReporter):
+	def __init__(self, job_id: str = None, job_name: str = None, **kwargs):
+		if job_id is None:
+			super().__init__(ident=job_id, **kwargs)
 		else:
-			response = self.manager.task_response(code)
-
-		return {'code': code, 'status': status, 'response': response}
-
-
-	@get
-	def genstatus(self, code: int):
-		return self.manager.task_status(code)
+			super().__init__(**kwargs)
+		self.job_id = job_id
+		self.job_name = job_name
 
 
+	def report_launch(self, info: dict):
+		info['name'] = self.job_name
+		return super().report_launch(info)
 
-@fig.script('start-server')
+
+
+@fig.component('server')
+class ServerTask(AbstractTask, fig.Configurable):
+	def launch(self, working_dir: Path) -> dict[str, JSONABLE]:
+		'''non blocking, returns the process id of the launched process'''
+		raise NotImplementedError('todo')
+
+
+	def monitor(self, reporter: AbstractReporter) -> dict[str, JSONABLE]:
+		'''blocking, use the reporter to report actionable events, return with exit code if one is received'''
+		raise NotImplementedError('todo')
+
+
+	def handle(self, exception: Exception) -> Optional[dict[str, JSONABLE]]:
+		'''blocking'''
+		raise NotImplementedError('todo')
+
+
+
+@fig.script('serve')
 def start_server(cfg: fig.Configuration):
-	cfg.push('server._type', 'manager-server', overwrite=False, silent=True)
-	app = cfg.pull('server')
-	app.record_description()
-	app.run()
+
+	cfg.push('server._type', 'server', silent=True, overwrite=False)
+	server: AbstractTask = cfg.pull('server')
+
+	cfg.push('reporter._type', 'reporter', silent=True, overwrite=False)
+	reporter: ReporterBase = cfg.pull('reporter')
+
+	working_dir = reporter.prepare(cfg)
+
+	launch_info = server.launch(working_dir)
+	reporter.report_launch(launch_info)
+
+	while True:
+		try:
+			exit_info = server.monitor(reporter)
+		except Exception as error:
+			error_info = server.handle(error)
+			if error_info is not None:
+				reporter.report_error(error_info)
+				raise error
+		else:
+			assert exit_info is not None, f'Monitor must return some exit info: {server}'
+			reporter.report_exit(exit_info)
+			break
+
+	code = exit_info.get('code', None)
+	return code
+
+	# old
+
+	listen_freq = cfg.pull('listen-freq', 1)
+
+	manifest_path = cfg.pull('manifest', '~/manifest.jsonl')
+	manifest_path = Path(manifest_path).expanduser()
+
+	event_root = cfg.pull('events', '~/events/')
+	event_root = Path(event_root).expanduser()
+	event_root.mkdir(exist_ok=True)
+
+	reporter.prepare(cfg)
+
+
+	if cfg.pull('dry-run', False):
+		raise NotImplementedError
+
+	# change directory and make sure environment vars are set
+	working_dir = cfg.pull('working-dir', None)
+	if working_dir is not None:
+		os.chdir(working_dir)
+
+
+	# fixed info
+	ID = cfg.pull('job-id', os.environ.get('JOB_ID', None))
+	name = cfg.pull('job-name', os.environ.get('JOB_NAME', None))
+	event_path = event_root / f'{ID}.txt'
+	event_path.touch()
+
+	# launch server using singularity (capture output) as a subprocess
+	pid = manager.launch()
+
+
+	launch_info = {
+		'event': 'launch',
+		'id': ID,
+		'host': hostname,
+		'pid': pid,
+		'name': name,
+		'path': str(event_path),
+	}
+	if cfg.pull('include-config', False):
+		launch_info['config'] = cfg.to_python()
+	launch_info['info'] = manager.info()
+
+	with manifest_path.open('a') as f:
+		f.write(json.dumps({'time': datetime.now().isoformat(), **launch_info}) + '\n')
+
+
+	# listen kill trigger
+
+	exit_code = manager.monitor(reporter)
+
+	# report exit
 
 
 
 
-
-
-
-
-
+	pass
 
 
 
