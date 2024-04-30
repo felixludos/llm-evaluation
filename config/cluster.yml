@@ -1,0 +1,13 @@
+
+reporter._type: cluster-reporter
+
+job_id:
+  _type: env-var
+  var: JOB_ID
+
+job_name:
+  _type: env-var
+  var: JOB_NAME
+
+
+
