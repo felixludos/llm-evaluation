@@ -1,13 +1,19 @@
 
-_base: [quick-llm]
+_meta.script_name: gui
 
-_meta.script_name: start-server
+_base: [chat]
 
-#server._type: manager-server
+###################
 
-manager._type: task-manager
-
-config_root._type: default-config-root
+#_base: [quick-llm]
+#
+#_meta.script_name: start-server
+#
+##server._type: manager-server
+#
+#manager._type: task-manager
+#
+#config_root._type: default-config-root
 
 
 
