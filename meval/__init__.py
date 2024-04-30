@@ -4,5 +4,5 @@
 # from . import manager
 # from . import models
 # from . import util
-from . import tgi
+from . import chat
 from . import server
