@@ -69,7 +69,10 @@ class ChatInference:
 			clear_btn="Clear",
 		).queue().launch()
 
-# CUDA_AVAILABLE_DEVICES=0 text-generation-launcher --model-id google/gemma-2b-it --hostname localhost --port 8080 --max-batch-total-tokens 1001 --max-batch-prefill-tokens 1000 --max-input-tokens 1000 --max-total-tokens 1001
+
+# CUDA_AVAILABLE_DEVICES=0 text-generation-launcher --model-id google/gemma-2b-it --hostname localhost --port 8080
+# --max-batch-total-tokens 1001 --max-batch-prefill-tokens 1000 --max-input-tokens 1000 --max-total-tokens 1001
+
 
 @fig.script('gui')
 def start_gui(cfg: fig.Configuration):
