@@ -1,47 +1,64 @@
 from .imports import *
 
-from .abstract import AbstractTask, AbstractReporter
+from .abstract import AbstractTask, AbstractEnvironment
 from .reporters import ReporterBase
 
 
 
 class Client(AbstractTask):
+	@property
+	def needs_space(self):
+		return False
+
+	@property
+	def type(self):
+		return 'client'
+
+	@property
+	def quiet(self):
+		return True
 
 
+	def _item_to_url(self, item: JSONOBJ) -> str:
+		info = item.get('info', {})
+		assert 'info' in item and 'host' in info and 'port' in info, f'Invalid server item: {item}'
+		return f'http://{info["host"]}:{info["port"]}'
 
-	pass
+
+	def infer_server(self, log_path: Path) -> str:
+		candidates = {}
+		for line in log_path.open('r'):
+			item = json.loads(line)
+			assert 'type' in item and 'event' in item, f'Invalid item: {item}'
+			if item['type'] == 'server':
+				url = self._item_to_url(item)
+				if item['event'] == 'launch':
+					candidates[url] = [item]
+				elif item['event'] == 'exit':
+					candidates.pop(url, None)
+				else:
+					candidates[url].append(item)
+
+		if not candidates:
+			raise ValueError('No active servers found')
+
+		url = self._select_server(candidates)
+		return url
 
 
+	def _select_server(self, candidates: dict[str, list[JSONOBJ]]) -> str:
+		if len(candidates) == 1:
+			return next(iter(candidates))
 
-@fig.script('start')
-def start_task(cfg: fig.Configuration, *, task_key='task', reporter_key='reporter'):
+		most_recent = max(candidates.values(), key=lambda items: items[0]['time'])
+		return self._item_to_url(most_recent[0])
 
-	task: AbstractTask = cfg.pull(task_key)
 
-	reporter: ReporterBase = cfg.pull(reporter_key)
-
-	reporter.prepare(cfg)
-	if task.needs_space:
-		working_dir = reporter.prepare(cfg)
-
-	launch_info = client.launch(working_dir)
-	reporter.report_launch(launch_info)
-
-	while True:
-		try:
-			exit_info = client.monitor(reporter)
-		except Exception as error:
-			error_info = client.handle(error)
-			if error_info is not None:
-				reporter.report_error(error_info)
-				raise error
-		else:
-			assert exit_info is not None, f'Monitor must return some exit info: {client}'
-			reporter.report_exit(exit_info)
-			break
-
-	code = exit_info.get('code', None)
-	return code
+	server = None
+	def prepare(self, reporter: AbstractEnvironment) -> Self:
+		if self.server is None:
+			self.server = self.infer_server(reporter.board_path)
+		return self
 
 
 

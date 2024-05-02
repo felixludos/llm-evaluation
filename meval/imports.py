@@ -8,7 +8,7 @@ import json
 
 
 JSONABLE = Union[str, int, float, bool, None, dict[str, 'JSONABLE'], list['JSONABLE']]
-
+JSONOBJ = dict[str, JSONABLE]
 
 
 

@@ -4,57 +4,60 @@ import os
 import subprocess
 import socket
 
-from .abstract import AbstractTask, AbstractReporter
-from .reporters import ReporterBase
+from .abstract import AbstractTask, AbstractEnvironment
 
 
 
 @fig.component('server-reporter')
-class ServerReporter(ReporterBase, fig.Configurable):
-	def __init__(self, ident: str, master_log: Union[str, Path] = '~/master-log.jsonl',
-				 work_root: Union[str, Path] = '~/prod/', include_config: bool = False):
+class ServerEnvironment(AbstractEnvironment, fig.Configurable):
+	def __init__(self, category: str, *, include_config: bool = False,
+				 task_board: Union[str, Path] = os.environ.get('TASK_BOARD', '~/task-board.jsonl'),
+				 task_root: Union[str, Path] = os.environ.get('TASK_ROOT', '~/prod/')):
 		'''name must be unique to a single job'''
-		self.master_log = Path(master_log).expanduser()
-		self.work_root = Path(work_root).expanduser()
-		self.work_dir = None
+		self.task_board = Path(task_board).expanduser().absolute()
+		self.task_root = Path(task_root).expanduser().absolute()
+		self.task_dir = None
 
 		self.include_config = include_config
 		self.config = None
 
-		self.ident = ident
+		self.category = category
 		self.hostname = socket.gethostname()
 
 
-	def prepare(self, config: fig.Configuration) -> Path:
-		self.work_root.mkdir(exist_ok=True)
-		self.work_dir = self.work_root / f'{self.ident}'
-		assert not self.work_dir.exists(), (f'Work directory for {self.ident} on {self.hostname} already exists: '
-											f'{self.work_dir}')
-		self.work_dir.mkdir()
+	def record_config(self, config: JSONABLE):
 		if self.include_config:
-			self.config = config.to_python()
-
-		return self.work_dir
+			self.config = config
 
 
-	def report(self, event: str, info: dict[str, JSONABLE]) -> Self:
-		with self.master_log.open('a') as f:
+	def prepare(self, task: fig.Configuration) -> Path:
+		self.task_root.mkdir(exist_ok=True)
+		self.task_dir = self.task_root / f'{self.ident}'
+		assert not self.task_dir.exists(), (f'Work directory for {self.ident} on {self.hostname} already exists: '
+											f'{self.task_dir}')
+		self.task_dir.mkdir()
+		return self.task_dir
+
+
+	def report(self, task: AbstractTask, event: str, info: dict[str, JSONABLE]) -> Self:
+		with self.task_board.open('a') as f:
 			f.write(json.dumps({'time': datetime.now().isoformat(), 'event': event, 'id': self.ident, **info}) + '\n')
 		return self
 
 
-	def report_launch(self, info: dict[str, JSONABLE]) -> Self:
-		assert self.work_dir is not None and self.work_dir.exists(), ('Work directory must be prepared before launch '
+	def report_launch(self, task: AbstractTask, info: dict[str, JSONABLE]) -> Self:
+		assert self.task_dir is not None and self.task_dir.exists(), ('Work directory must be prepared before launch '
 																	  '(call `.prepare(config)`)')
-		info['path'] = str(self.work_dir)
-		if self.config is not None:
+		if self.task_dir is not None:
+			info['path'] = str(self.task_dir)
+		if self.include_config:
 			info['config'] = self.config
-		return super().report_launch(info)
+		return super().report_launch(task, info)
 
 
 
 @fig.component('cluster-reporter')
-class ClusterReporter(ServerReporter):
+class ClusterReporter(ServerEnvironment):
 	def __init__(self, job_id: str = None, job_name: str = None, **kwargs):
 		if job_id is None:
 			super().__init__(ident=job_id, **kwargs)
@@ -77,7 +80,7 @@ class ServerTask(AbstractTask, fig.Configurable):
 		raise NotImplementedError('todo')
 
 
-	def monitor(self, reporter: AbstractReporter) -> dict[str, JSONABLE]:
+	def monitor(self, reporter: AbstractEnvironment) -> dict[str, JSONABLE]:
 		'''blocking, use the reporter to report actionable events, return with exit code if one is received'''
 		raise NotImplementedError('todo')
 
