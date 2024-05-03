@@ -1,7 +1,6 @@
 from .imports import *
 
 from .abstract import AbstractTask, AbstractEnvironment
-from .reporters import ReporterBase
 
 
 
@@ -19,10 +18,17 @@ class Client(AbstractTask):
 		return True
 
 
-	def _item_to_url(self, item: JSONOBJ) -> str:
+	def _server_address(self, item: JSONOBJ) -> str:
 		info = item.get('info', {})
-		assert 'info' in item and 'host' in info and 'port' in info, f'Invalid server item: {item}'
-		return f'http://{info["host"]}:{info["port"]}'
+		assert 'info' in item and 'host' in item and 'port' in info, f'Invalid server item: {item}'
+		return f'{item["host"]}:{info["port"]}'
+
+
+	def _as_url(self, host: str = '127.0.0.1', port: Union[str, int] = None) -> str:
+		if port is None and ':' not in host:
+			raise ValueError(f'Invalid host: {host} (port is missing)')
+		address = host if port is None else f'{host}:{port}'
+		return f'http://{address}'
 
 
 	def infer_server(self, log_path: Path) -> str:
@@ -31,7 +37,7 @@ class Client(AbstractTask):
 			item = json.loads(line)
 			assert 'type' in item and 'event' in item, f'Invalid item: {item}'
 			if item['type'] == 'server':
-				url = self._item_to_url(item)
+				url = self._server_address(item)
 				if item['event'] == 'launch':
 					candidates[url] = [item]
 				elif item['event'] == 'exit':
@@ -51,7 +57,7 @@ class Client(AbstractTask):
 			return next(iter(candidates))
 
 		most_recent = max(candidates.values(), key=lambda items: items[0]['time'])
-		return self._item_to_url(most_recent[0])
+		return self._as_url(self._server_address(most_recent[0]))
 
 
 	server = None

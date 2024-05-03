@@ -5,10 +5,11 @@ import subprocess
 import socket
 
 from .abstract import AbstractTask, AbstractEnvironment
+from .tasks import start_task
 
 
 
-@fig.component('server-reporter')
+@fig.component('server-env')
 class ServerEnvironment(AbstractEnvironment, fig.Configurable):
 	def __init__(self, category: str, *, include_config: bool = False,
 				 task_board: Union[str, Path] = os.environ.get('TASK_BOARD', '~/task-board.jsonl'),
@@ -24,10 +25,6 @@ class ServerEnvironment(AbstractEnvironment, fig.Configurable):
 		self.category = category
 		self.hostname = socket.gethostname()
 
-
-	def record_config(self, config: JSONABLE):
-		if self.include_config:
-			self.config = config
 
 
 	def prepare(self, task: fig.Configuration) -> Path:
@@ -73,8 +70,8 @@ class ClusterReporter(ServerEnvironment):
 
 
 
-@fig.component('server')
-class ServerTask(AbstractTask, fig.Configurable):
+@fig.component('tgi-server')
+class InferenceServer(AbstractTask, fig.Configurable):
 	def launch(self, working_dir: Path) -> dict[str, JSONABLE]:
 		'''non blocking, returns the process id of the launched process'''
 		raise NotImplementedError('todo')
@@ -90,15 +87,12 @@ class ServerTask(AbstractTask, fig.Configurable):
 		raise NotImplementedError('todo')
 
 
-
 @fig.script('serve')
 def start_server(cfg: fig.Configuration):
+	cfg.push('env._type', 'server-env', silent=True, overwrite=False)
+	cfg.push('server._type', 'tgi-server', silent=True, overwrite=False)
 
-	cfg.push('server._type', 'server', silent=True, overwrite=False)
-	server: AbstractTask = cfg.pull('server')
-
-	cfg.push('reporter._type', 'reporter', silent=True, overwrite=False)
-	reporter: ReporterBase = cfg.pull('reporter')
+	return start_task(cfg, task_key='server', env_key='env')
 
 	working_dir = reporter.prepare(cfg)
 

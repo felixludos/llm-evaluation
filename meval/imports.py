@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Tuple, Union, Optional, Iterable, Iterator, Generator, Self
+from typing import List, Dict, Any, Tuple, Union, Optional, Iterable, Iterator, Generator, Self, Callable
 from pathlib import Path
 from omnibelt import load_json, save_json, load_csv, load_yaml, save_yaml, load_csv_rows, pformat
 import omnifig as fig

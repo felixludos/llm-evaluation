@@ -3,81 +3,111 @@ from .imports import *
 
 
 class AbstractEnvironment:
+	'''
+	A context manager for a specific task.
+	Mostly the meta data for a task.
+	Could be nested, but not recommended.
+	Mostly delegates to the manager instance shared by all tasks.
+	Should be customized for different run environemnts (local/CLI, cluster, jupyter, etc.)
+	'''
 	@property
-	def board_path(self) -> Path:
+	def ident(self) -> str:
+		'''should be unique identifier for a single task'''
 		raise NotImplementedError
 
 
-	def prepare(self, task: 'AbstractTask') -> Optional[Path]:
-		pass
-
-
-	def record_config(self, config: JSONABLE):
-		pass
-
-
-	def report(self, task: 'AbstractTask', event: str, info: JSONOBJ) -> Self:
+	@property
+	def workspace(self) -> Path:
+		'''Working directory unique to this task. Can be created on demand'''
 		raise NotImplementedError
 
 
-	def report_launch(self, task: 'AbstractTask', info: JSONOBJ) -> Self:
-		return self.report(task, 'launch', info)
+	def world_history(self) -> Iterator[JSONOBJ]:
+		'''Lazily yields all past events in the task log from oldest to most recent.'''
+		raise NotImplementedError
 
 
-	def report_error(self, task: 'AbstractTask', info: JSONOBJ) -> Self:
-		return self.report(task, 'error', info)
+	def prepare(self, manager: 'AbstractManager', task: 'AbstractTask') -> Self:
+		return self
 
 
-	def report_exit(self, task: 'AbstractTask', info: JSONOBJ) -> Self:
-		return self.report(task, 'exit', info)
+	def __enter__(self):
+		return self
+
+
+	def report(self, event: str, info: JSONOBJ):
+		raise NotImplementedError
+
+
+	def report_launch(self, info: JSONOBJ):
+		raise NotImplementedError
+
+
+	def report_error(self, info: JSONOBJ):
+		raise NotImplementedError
+
+
+	def report_exit(self, info: JSONOBJ):
+		raise NotImplementedError
+
+
+
+class AbstractManager:
+	'''
+	Manages all tasks that have to be run.
+	Maintains global state (especially paths and roots).
+	'''
+	def prepare(self, task: 'AbstractTask') -> AbstractEnvironment:
+		pass
+
+
+	def record_config(self, config: fig.Configuration):
+		pass
+
+
+	def world_history(self) -> Iterator[JSONOBJ]:
+		'''Lazily yields all past events in the task log from oldest to most recent.'''
+		raise NotImplementedError
+
+
+	def report(self, env: AbstractEnvironment, event: str, info: JSONOBJ, **details: JSONABLE) -> Self:
+		raise NotImplementedError
 
 
 
 class AbstractTask:
 	@property
-	def needs_space(self):
+	def category(self) -> str:
 		raise NotImplementedError
 
 
 	@property
-	def ident(self):
-		raise NotImplementedError
-
-
-	@property
-	def quiet(self):
+	def quiet(self) -> bool:
+		'''skips the launch, complete, and error reporting (default=False)'''
 		return False
 
 
-	def prepare(self, reporter: AbstractEnvironment) -> Self:
+	def prepare(self, env: AbstractEnvironment) -> None:
 		pass
-
-
-	def launch(self, working_dir: Optional[Path] = None) -> JSONOBJ:
-		'''
-		returns specific launch info
-		'''
-		raise NotImplementedError
 
 
 	def status(self) -> JSONABLE:
-		'''
-		returns nonblocking status of task
-		'''
+		'''non blocking work'''
 		pass
 
 
-	def monitor(self, reporter: AbstractEnvironment) -> JSONOBJ:
-		'''
-		returns optional information about the server to save to the era file
-		'''
+	def launch(self, report: Callable[[str, JSONOBJ], None]) -> JSONOBJ:
+		'''non blocking'''
 		raise NotImplementedError
 
 
-	def handle(self, exception: Exception) -> Optional[JSONOBJ]:
-		'''
-		returns optional information about the error to save to the era file
-		'''
+	def complete(self, report: Callable[[str, JSONOBJ], None]) -> JSONOBJ:
+		'''blocking'''
+		raise NotImplementedError
+
+
+	def handle(self, exception: Exception, report: Callable[[str, JSONOBJ], None]) -> Optional[JSONOBJ]:
+		'''non blocking handle the exception or provide the error info'''
 		raise NotImplementedError
 
 
