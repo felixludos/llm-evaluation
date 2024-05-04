@@ -31,10 +31,9 @@ class Client(AbstractTask):
 		return f'http://{address}'
 
 
-	def infer_server(self, log_path: Path) -> str:
+	def infer_server(self, history: Iterator[JSONOBJ]) -> str:
 		candidates = {}
-		for line in log_path.open('r'):
-			item = json.loads(line)
+		for item in history:
 			assert 'type' in item and 'event' in item, f'Invalid item: {item}'
 			if item['type'] == 'server':
 				url = self._server_address(item)
@@ -61,9 +60,9 @@ class Client(AbstractTask):
 
 
 	server = None
-	def prepare(self, reporter: AbstractEnvironment) -> Self:
+	def prepare(self, env: AbstractEnvironment) -> Self:
 		if self.server is None:
-			self.server = self.infer_server(reporter.board_path)
+			self.server = self.infer_server(env.world_history())
 		return self
 
 

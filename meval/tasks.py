@@ -1,3 +1,5 @@
+import socket
+
 from .imports import *
 
 import os
@@ -7,6 +9,7 @@ from .abstract import AbstractTask, AbstractManager, AbstractEnvironment
 
 
 
+@fig.component('env')
 class Environment(AbstractEnvironment, fig.Configurable):
 	'''this should be used to run a single task.'''
 	def __init__(self, ident: str = None, include_config: bool = False, **kwargs):
@@ -16,10 +19,11 @@ class Environment(AbstractEnvironment, fig.Configurable):
 		self._task = None
 		self._config = None
 		self._include_config = include_config
+		self._workspace = None
 
 
 	def prepare(self, manager: AbstractManager, task: AbstractTask) -> Self:
-		assert self.task is None, 'Environment is already prepared'
+		assert self._task is None, 'Environment is already prepared'
 		self._manager = manager
 		self._task = task
 		return super().prepare(manager, task)
@@ -31,10 +35,12 @@ class Environment(AbstractEnvironment, fig.Configurable):
 		return self._ident
 
 
-	@cached_property
+	@property
 	def workspace(self) -> Path:
-		assert self._manager is not None, 'Manager must be set before workspace is accessed'
-		return self._manager.create_workspace(self._task)
+		if self._workspace is None:
+			assert self._manager is not None, 'Manager must be set before workspace is accessed'
+			self._workspace = self._manager.create_workspace(self._task)
+		return self._workspace
 
 
 	def record_config(self, config: JSONABLE):
@@ -46,13 +52,17 @@ class Environment(AbstractEnvironment, fig.Configurable):
 		yield from self._manager.world_history(*args, **kwargs)
 
 
-	def _report(self, event: str, info: dict[str, JSONABLE], **details: JSONABLE):
+	def _report(self, event: str, info: JSONOBJ, **details: JSONABLE):
 		assert self._manager is not None, 'Manager must be set before reporting'
-		self._manager.report(self, event, info)
+		self._manager.report(self, event, info, **details)
 
 
 	def report_launch(self, info: JSONOBJ, **details: JSONABLE):
-		return self._report('launch', info, category=self._task.category, **details)
+		if self._workspace is not None:
+			details['path'] = str(self._workspace)
+		if self._include_config:
+			details['config'] = self._config
+		return self._report('launch', info, category=self._task.category, host=socket.gethostname(), **details)
 
 
 	def report_error(self, info: JSONOBJ, **details: JSONABLE):
@@ -64,9 +74,9 @@ class Environment(AbstractEnvironment, fig.Configurable):
 
 
 
+@fig.component('default-manager')
 class Manager(AbstractManager, fig.Configurable):
 	_Environment = Environment
-	env: Environment
 
 	def __init__(self, env: AbstractEnvironment = None,
 				 task_log: Union[str, Path] = os.environ.get('TASK_LOG', '~/task-log.jsonl'),
@@ -89,8 +99,9 @@ class Manager(AbstractManager, fig.Configurable):
 	def prepare(self, task: AbstractTask) -> AbstractEnvironment:
 		self.working_root.mkdir(exist_ok=True)
 		self.task_log.touch()
-		self.env.record_config(self._config)
-		return self.env.prepare(self, task)
+		env = self._Environment() if self.env is None else self.env
+		env.record_config(self._config)
+		return env.prepare(self, task)
 
 
 	def create_workspace(self, env: AbstractEnvironment) -> Path:
@@ -105,10 +116,12 @@ class Manager(AbstractManager, fig.Configurable):
 		self._config = config.to_python()
 
 
-	def report(self, env: AbstractEnvironment, event: str, info: JSONOBJ, **details: JSONABLE):
+	def report(self, env: AbstractEnvironment, event: str, info: JSONOBJ = None, **details: JSONABLE):
+		payload = {'time': datetime.now().isoformat(), 'event': event, 'id': env.ident, **details}
+		if info is not None:
+			payload['info'] = info
 		with self.task_log.open('a') as f:
-			f.write(json.dumps({'time': datetime.now().isoformat(), 'event': event,
-								'id': env.ident, **details, 'info': info}) + '\n')
+			f.write(json.dumps(payload) + '\n')
 
 
 
@@ -132,13 +145,17 @@ def start_task(cfg: fig.Configuration, *, manager: AbstractManager = None, task:
 			try:
 				exit_info = task.complete(env.report)
 			except Exception as error:
-				error_info = task.handle(error)
-				if error_info is not None:
-					if not task.quiet:
-						env.report_error(error_info)
-					raise error
+				try:
+					error_info = task.handle(error, env.report)
+				except NotImplementedError:
+					error_info = {'type': type(error), 'message': str(error)}
+				finally:
+					if error_info is not None:
+						if not task.quiet:
+							env.report_error(error_info)
+						raise error
 			else:
-				assert exit_info is not None, f'Monitor must return some exit info: {task}'
+				# assert exit_info is not None, f'Monitor must return some exit info: {task}'
 				if not task.quiet:
 					env.report_exit(exit_info)
 				break
