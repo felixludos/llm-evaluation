@@ -2,7 +2,7 @@ import time
 
 from .imports import *
 
-import sys, os
+import sys, os, signal
 import subprocess
 import socket
 from watchdog.observers import Observer
@@ -177,8 +177,9 @@ class InferenceServer(AbstractTask, fig.Configurable):
 
 	def _handle_cmd(self, message: str):
 		if message.strip().startswith('exit'):
-			self._terminate()
 			self._exit_reason = message.strip()
+			self._terminate()
+			print(f'Received message to exit: {self._exit_reason!r}')
 		else:
 			raise NotImplementedError(f'Unknown command: {message!r}')
 
@@ -203,7 +204,6 @@ class InferenceServer(AbstractTask, fig.Configurable):
 				self._report('connected', {'shards': self._shard_load_info, 'snapshot': self._get_resource_snapshot()})
 
 
-
 	def _get_resource_snapshot(self):
 		return gpu_snapshot()
 
@@ -211,6 +211,8 @@ class InferenceServer(AbstractTask, fig.Configurable):
 	def _terminate(self):
 		self._process.terminate()
 		self._process.wait()
+		# os.killpg(self._process.pid, signal.SIGTERM)
+		# os.killpg(os.getpgid(self._process.pid), signal.SIGTERM)
 
 
 	def complete(self, report: Callable[[str, JSONOBJ], None]) -> JSONOBJ:

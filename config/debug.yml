@@ -3,16 +3,14 @@ _meta.script_name: serve
 #_meta.script_name: sandbox
 
 
-#_base: [chat]
+_base: [local]
 
 
 model-id: google/gemma-2b-it
 
-env._type: local-env
-
 
 #command: source $CONDA_PREFIX/etc/profile.d/conda.sh; conda activate llm; text-generation-launcher
-command: text-generation-launcher --port {port}
+#command: text-generation-launcher --port {port}
 #command: /home/fleeb/.cargo/bin/text-generation-launcher
 #command: conda activate llm && /home/fleeb/.cargo/bin/text-generation-launcher
 #command: singularity run --nv --bind singe/data:/data singe/text-generation-inference.sif

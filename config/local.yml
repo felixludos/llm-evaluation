@@ -1,4 +1,6 @@
 
 
 
+env._type: local-env
+command: text-generation-launcher --port {port}
 
