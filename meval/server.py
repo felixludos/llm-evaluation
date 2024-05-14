@@ -11,7 +11,8 @@ from contextlib import redirect_stdout, redirect_stderr
 
 from .abstract import AbstractTask, AbstractEnvironment
 from .tasks import start_task, Environment
-
+from .resources import resource_snapshot, gpu_snapshot
+from .util import remove_ansi_escape_sequences
 
 
 @fig.component('cluster-env')
@@ -32,15 +33,23 @@ class ClusterEnvironment(Environment):
 
 
 
+@fig.component('local-env')
+class LocalEnvironment(Environment):
+	def wrap_command(self, cmd: str) -> str:
+		return (f'PATH=/home/fleeb/.cargo/bin:$PATH; source $CONDA_PREFIX/etc/profile.d/conda.sh; conda activate llm; '
+				f'{cmd}')
+
+
+
 @fig.component('tgi-server')
 class InferenceServer(AbstractTask, fig.Configurable):
 	# region init
 	def __init__(self,
 				 command: str,
 				 port: Union[str, int] = 3000,
-				 allow_stdout: bool = False,
+				 allow_stdout: bool = True,
 
-				 model_id: str = 'bigscience/bloom-560m',
+				 model_id: str = None, # 'bigscience/bloom-560m'
 
 				 sharded: bool = None,
 				 num_shards: int = None,
@@ -48,7 +57,7 @@ class InferenceServer(AbstractTask, fig.Configurable):
 				 quantize: str = None,
 				 speculate: int = None,
 
-				 dtype: str = 'float16', # 'bfloat16', 'float16'
+				 dtype: str = None, # 'bfloat16', 'float16'
 				 trust_remote_code: bool = False,
 
 				 max_concurrent_requests: int = None,
@@ -104,23 +113,29 @@ class InferenceServer(AbstractTask, fig.Configurable):
 		self._server_args = server_args
 
 	@property
-	def type(self):
+	def category(self):
 		return 'server'
 
 	# endregion
 
-	def prepare(self, env: AbstractEnvironment) -> None:
+	def prepare(self, env: Environment) -> None:
 		super().prepare(env)
+		self.env = env
 		self.workspace = env.workspace
 
 	# _cmd = ('singularity run --nv --bind ~/workspace/singe/data/:/data ~/workspace/singe/text-generation-inference.sif'
 	# 		' --port {port} -e')
-	def launch(self, report: Callable[[str, JSONOBJ], None]) -> JSONOBJ:
-		'''non blocking, returns the process id of the launched process'''
-		assert self._process is None, f'already launched'
+
+	def _build_command(self):
 		args = ' '.join([f'--{k}' if v is True else f'--{k} {v}' for k, v in self._server_args.items()
 					if v is not None and v is not False])
 		cmd = f'{self._command_base.format(port=self._port)} {args}'
+		return self.env.wrap_command(cmd)
+
+	def launch(self, report: Callable[[str, JSONOBJ], None]) -> JSONOBJ:
+		'''non blocking, returns the process id of the launched process'''
+		assert self._process is None, f'already launched'
+		cmd = self._build_command()
 
 		assert self.workspace is not None, f'workspace not set (have you called `prepare()`?)'
 		self._logfile = self.workspace / 'server.log'
@@ -128,13 +143,19 @@ class InferenceServer(AbstractTask, fig.Configurable):
 		self._msgfile = self.workspace / '.server.message'
 		self._msgfile.touch()
 
+		self._report = report
+		self._shard_load_info = {}
 		self.observer = Observer()
-		self.observer.schedule(self._Monitor(self._msgfile, self._handle_cmd), self._msgfile.parent)
-		self.observer.schedule(self._Monitor(self._logfile, self._handle_log), self._logfile.parent)
+		self.observer.schedule(self._Monitor(str(self._msgfile), self._handle_cmd), self._msgfile.parent, recursive=False)
+		self.observer.schedule(self._Monitor(str(self._logfile), self._handle_log), self._logfile.parent, recursive=False)
 		self.observer.start()
-		self._process = subprocess.Popen(cmd.split(), shell=True, text=True,
+
+		self._process = subprocess.Popen(cmd, shell=True, text=True, executable="/bin/bash",
+										 env=os.environ.copy(),
 										 stdout=self._logfile.open('a'), stderr=self._logfile.open('a'))
-		return {'command': cmd, 'pid': self._process.pid, 'msg': str(self._msgfile), 'log': str(self._logfile)}
+		return {'command': cmd, 'pid': self._process.pid, 'msg': str(self._msgfile), 'log': str(self._logfile),
+				'port': self._port,
+				'snapshot': self._get_resource_snapshot()}
 
 
 	class _Monitor(FileSystemEventHandler):
@@ -156,8 +177,7 @@ class InferenceServer(AbstractTask, fig.Configurable):
 
 	def _handle_cmd(self, message: str):
 		if message.strip().startswith('exit'):
-			self._process.terminate()
-			self._process.wait()
+			self._terminate()
 			self._exit_reason = message.strip()
 		else:
 			raise NotImplementedError(f'Unknown command: {message!r}')
@@ -167,9 +187,30 @@ class InferenceServer(AbstractTask, fig.Configurable):
 		if self._allow_stdout:
 			sys.stdout.write(message)
 
+		for line in message.splitlines():
+
+			if 'Shard ready in ' in line:
+
+				*tm, r = line.split('Shard ready in ')[1].split()
+				rank = remove_ansi_escape_sequences(r.split('=')[1])
+
+				dt = ' '.join(tm)
+				if ' ' not in dt:
+					dt = float(dt[:-1])
+				self._shard_load_info[rank] = dt
+
+			elif line.endswith('Connected'):
+				self._report('connected', {'shards': self._shard_load_info, 'snapshot': self._get_resource_snapshot()})
 
 
-		pass
+
+	def _get_resource_snapshot(self):
+		return gpu_snapshot()
+
+
+	def _terminate(self):
+		self._process.terminate()
+		self._process.wait()
 
 
 	def complete(self, report: Callable[[str, JSONOBJ], None]) -> JSONOBJ:
@@ -186,7 +227,10 @@ class InferenceServer(AbstractTask, fig.Configurable):
 
 	def handle(self, exception: Exception, report: Callable[[str, JSONOBJ], None]) -> Optional[JSONOBJ]:
 		'''blocking'''
-		raise NotImplementedError('todo')
+		self._terminate()
+		self.observer.stop()
+		self.observer.join()
+		return super().handle(exception, report)
 
 
 

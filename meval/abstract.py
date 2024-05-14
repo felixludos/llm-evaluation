@@ -35,7 +35,11 @@ class AbstractEnvironment:
 		return self
 
 
-	def report(self, event: str, info: JSONOBJ):
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		pass
+
+
+	def report(self, event: str, info: JSONOBJ = None):
 		raise NotImplementedError
 
 
@@ -74,6 +78,10 @@ class AbstractManager:
 		raise NotImplementedError
 
 
+	def generate_ident(self, env: AbstractEnvironment) -> str:
+		raise NotImplementedError
+
+
 
 class AbstractTask:
 	@property
@@ -108,7 +116,7 @@ class AbstractTask:
 
 	def handle(self, exception: Exception, report: Callable[[str, JSONOBJ], None]) -> Optional[JSONOBJ]:
 		'''non blocking handle the exception or provide the error info'''
-		raise NotImplementedError
+		return {'type': type(exception).__name__, 'message': str(exception)}
 
 
 

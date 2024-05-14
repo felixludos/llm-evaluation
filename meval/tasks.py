@@ -26,12 +26,24 @@ class Environment(AbstractEnvironment, fig.Configurable):
 		assert self._task is None, 'Environment is already prepared'
 		self._manager = manager
 		self._task = task
+		self._prepare(manager, task)
+		task.prepare(self)
 		return super().prepare(manager, task)
+
+
+	def _prepare(self, manager: AbstractManager, task: AbstractTask):
+		pass
+
+
+	def wrap_command(self, cmd: str) -> str:
+		return cmd
 
 
 	@property
 	def ident(self) -> str:
 		'''unique identifier for the task (environment)'''
+		if self._ident is None:
+			self._ident = self._manager.generate_ident(self)
 		return self._ident
 
 
@@ -39,7 +51,7 @@ class Environment(AbstractEnvironment, fig.Configurable):
 	def workspace(self) -> Path:
 		if self._workspace is None:
 			assert self._manager is not None, 'Manager must be set before workspace is accessed'
-			self._workspace = self._manager.create_workspace(self._task)
+			self._workspace = self._manager.create_workspace(self)
 		return self._workspace
 
 
@@ -55,6 +67,10 @@ class Environment(AbstractEnvironment, fig.Configurable):
 	def _report(self, event: str, info: JSONOBJ, **details: JSONABLE):
 		assert self._manager is not None, 'Manager must be set before reporting'
 		self._manager.report(self, event, info, **details)
+
+
+	def report(self, event: str, info: JSONOBJ = None):
+		return self._report(event, info)
 
 
 	def report_launch(self, info: JSONOBJ, **details: JSONABLE):
@@ -79,15 +95,15 @@ class Manager(AbstractManager, fig.Configurable):
 	_Environment = Environment
 
 	def __init__(self, env: AbstractEnvironment = None,
-				 task_log: Union[str, Path] = os.environ.get('TASK_LOG', '~/task-log.jsonl'),
-				 working_root: Union[str, Path] = os.environ.get('TASK_WORK_ROOT', '~/task-work/'), **kwargs):
+				 task_log: Union[str, Path] = os.environ.get('TASK_LOG', '~/log.jsonl'),
+				 working_root: Union[str, Path] = os.environ.get('TASK_WORK_ROOT', '~/tasks/'), **kwargs):
 		if env is None:
 			env = self._Environment()
 		super().__init__(**kwargs)
 		self.env = env
 		self._config = None
-		self.task_log = Path(task_log).expanduser().absolute()
-		self.working_root = Path(working_root).expanduser().absolute()
+		self.task_log = Path(task_log).expanduser().resolve()
+		self.working_root = Path(working_root).expanduser().resolve()
 
 
 	def world_history(self) -> Iterator[JSONOBJ]:
@@ -124,12 +140,25 @@ class Manager(AbstractManager, fig.Configurable):
 			f.write(json.dumps(payload) + '\n')
 
 
+	def generate_ident(self, env: AbstractEnvironment) -> str:
+		existing = list(self.working_root.glob('*'))
+		n = len(existing)
+
+		while True:
+			candidate = f'{str(n).zfill(3)}'
+			if (self.working_root / candidate).exists():
+				n += 1
+			else:
+				return candidate
+
+
 
 @fig.script('start')
 def start_task(cfg: fig.Configuration, *, manager: AbstractManager = None, task: AbstractTask = None,
 			   manager_key='manager', task_key='task'):
 
 	if manager is None:
+		cfg.push(f'{manager_key}._type', 'default-manager', overwrite=False, silent=True)
 		manager: AbstractManager = cfg.pull(manager_key)
 
 	if task is None:
@@ -137,6 +166,8 @@ def start_task(cfg: fig.Configuration, *, manager: AbstractManager = None, task:
 
 	manager.record_config(cfg)
 	with manager.prepare(task) as env:
+		task.prepare(env)
+
 		launch_info = task.launch(env.report)
 		if not task.quiet:
 			env.report_launch(launch_info)
@@ -144,16 +175,12 @@ def start_task(cfg: fig.Configuration, *, manager: AbstractManager = None, task:
 		while True:
 			try:
 				exit_info = task.complete(env.report)
-			except Exception as error:
-				try:
-					error_info = task.handle(error, env.report)
-				except NotImplementedError:
-					error_info = {'type': type(error), 'message': str(error)}
-				finally:
-					if error_info is not None:
-						if not task.quiet:
-							env.report_error(error_info)
-						raise error
+			except (KeyboardInterrupt, Exception) as error:
+				error_info = task.handle(error, env.report)
+				if error_info is not None:
+					if not task.quiet:
+						env.report_error(error_info)
+					raise error from error
 			else:
 				# assert exit_info is not None, f'Monitor must return some exit info: {task}'
 				if not task.quiet:
@@ -165,6 +192,31 @@ def start_task(cfg: fig.Configuration, *, manager: AbstractManager = None, task:
 
 
 
+# @fig.script('sandbox')
+# def _sandbox(cfg: fig.Configuration):
+# 	import subprocess, sys, os
+# 	from omnibelt import colorize
+#
+# 	# cmd = 'source ~/.bashrc && conda activate llm && conda info'
+# 	cmd = '''
+# 	source $CONDA_PREFIX/etc/profile.d/conda.sh
+# 	conda activate llm
+# 	conda info
+# 	'''
+# 	# cmd = 'conda run -n llm text-generation-launcher'
+# 	# cmd = ('echo $CONDA_PREFIX;'
+# 	# 	   'conda activate llm;'
+# 	# 	   'echo $CONDA_PREFIX;')
+# 	cmd = 'source $CONDA_PREFIX/etc/profile.d/conda.sh; conda activate llm; text-generation-launcher'
+#
+# 	proc = subprocess.Popen(cmd, shell=True, text=True, executable="/bin/bash", env=os.environ.copy())
+#
+# 	print(colorize('started', 'green'))
+# 	print()
+#
+# 	out = proc.wait()
+#
+# 	print(colorize(f'finished: {out}', 'green'))
 
 
 
