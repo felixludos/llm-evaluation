@@ -20,7 +20,13 @@ from .util import remove_ansi_escape_sequences
 class ClusterEnvironment(Environment):
 	def __init__(self, job_id: str = os.environ.get('JOB_ID', None), job_name: str = os.environ.get('JOB_NAME', None),
 				 **kwargs):
-		if job_id is None:
+		if job_id is not None:
+			terms = job_id.split('#')
+			if len(terms) > 1:
+				job_id = terms[1]
+			else:
+				job_id = None
+		if job_id is not None:
 			super().__init__(ident=job_id, **kwargs)
 		else:
 			super().__init__(**kwargs)
