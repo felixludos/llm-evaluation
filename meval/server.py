@@ -77,6 +77,8 @@ class InferenceServer(AbstractTask, fig.Configurable):
 		self._process = None
 		self._exit_reason = None
 		self._command_base = command
+		if '{port}' not in command:
+			raise ValueError('WARNING: command does not contain {port} placeholder')
 		self.workspace = None
 		self._port = port
 		self._allow_stdout = allow_stdout
@@ -124,9 +126,6 @@ class InferenceServer(AbstractTask, fig.Configurable):
 		super().prepare(env)
 		self.env = env
 		self.workspace = env.workspace
-
-	# _cmd = ('singularity run --nv --bind ~/workspace/singe/data/:/data ~/workspace/singe/text-generation-inference.sif'
-	# 		' --port {port} -e')
 
 	def _build_command(self):
 		args = ' '.join([f'--{k}' if v is True else f'--{k} {v}' for k, v in self._server_args.items()

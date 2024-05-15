@@ -1,13 +1,16 @@
 
-reporter._type: cluster-reporter
+env._type: cluster-env
 
-job_id:
-  _type: env-var
-  var: JOB_ID
 
-job_name:
-  _type: env-var
-  var: JOB_NAME
+command: singularity run --nv --bind ~/workspace/singe/data/:/data ~/workspace/singe/text-generation-inference.sif' --port {port} -e
 
+
+#job_id:
+#  _type: env-var
+#  var: JOB_ID
+#
+#job_name:
+#  _type: env-var
+#  var: JOB_NAME
 
 
