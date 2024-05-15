@@ -7,7 +7,7 @@ import sys
 def submit_llm(cfg: fig.Configuration):
 	command = cfg.pull('command', None, silent=True)
 	if command is None:
-		prefix = cfg.pull('prefix', 'unbuffer fig serve cluster')
+		prefix = cfg.pull('prefix', 'fig serve cluster')
 		skip = cfg.pull('skip', 2)
 
 		raw = sys.argv[skip:] if skip is not None and len(sys.argv) >= skip else sys.argv
