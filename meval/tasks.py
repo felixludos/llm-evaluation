@@ -180,7 +180,7 @@ def start_task(cfg: fig.Configuration, *, manager: AbstractManager = None, task:
 				if error_info is not None:
 					if not task.quiet:
 						env.report_error(error_info)
-					raise error from error
+					raise
 			else:
 				# assert exit_info is not None, f'Monitor must return some exit info: {task}'
 				if not task.quiet:

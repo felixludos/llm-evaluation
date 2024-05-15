@@ -2,8 +2,9 @@ import time
 
 from .imports import *
 
-import sys, os, signal
+import sys, os, signal, psutil
 import subprocess
+import requests, json
 import socket
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -79,6 +80,7 @@ class InferenceServer(AbstractTask, fig.Configurable):
 		self.workspace = None
 		self._port = port
 		self._allow_stdout = allow_stdout
+		self._core_command = None
 		server_args = {}
 		if model_id is not None:
 			server_args['model-id'] = model_id
@@ -150,12 +152,14 @@ class InferenceServer(AbstractTask, fig.Configurable):
 		self.observer.schedule(self._Monitor(str(self._logfile), self._handle_log), self._logfile.parent, recursive=False)
 		self.observer.start()
 
-		self._process = subprocess.Popen(cmd, shell=True, text=True, executable="/bin/bash",
-										 env=os.environ.copy(),
+		self._process = subprocess.Popen(cmd, shell=True, text=True, executable="/bin/bash", env=os.environ.copy(),
 										 stdout=self._logfile.open('a'), stderr=self._logfile.open('a'))
-		return {'command': cmd, 'pid': self._process.pid, 'msg': str(self._msgfile), 'log': str(self._logfile),
-				'port': self._port,
-				'snapshot': self._get_resource_snapshot()}
+		server_info = {
+			'model_id': self._server_args.get('model_id', 'bigscience/bloom-560m'),
+			'model_dtype': self._server_args.get('model_dtype', 'torch.float16'),
+		}
+		return {'pid': self._process.pid, 'msg': str(self._msgfile), 'log': str(self._logfile), 'port': self._port,
+				'server': server_info, 'snapshot': self._get_resource_snapshot()}
 
 
 	class _Monitor(FileSystemEventHandler):
@@ -201,7 +205,15 @@ class InferenceServer(AbstractTask, fig.Configurable):
 				self._shard_load_info[rank] = dt
 
 			elif line.endswith('Connected'):
-				self._report('connected', {'shards': self._shard_load_info, 'snapshot': self._get_resource_snapshot()})
+
+				info = self._get_server_info()
+
+				self._report('connected', {'server': info, 'shards': self._shard_load_info,
+										   'snapshot': self._get_resource_snapshot()})
+
+	def _get_server_info(self):
+		time.sleep(1) # to avoid timing issues
+		return requests.get(f'http://127.0.0.1:{self._port}/info').json()
 
 
 	def _get_resource_snapshot(self):
@@ -209,10 +221,17 @@ class InferenceServer(AbstractTask, fig.Configurable):
 
 
 	def _terminate(self):
-		self._process.terminate()
-		self._process.wait()
-		# os.killpg(self._process.pid, signal.SIGTERM)
-		# os.killpg(os.getpgid(self._process.pid), signal.SIGTERM)
+		if self._process is not None:
+			pid = self._process.pid
+			try:
+				parent = psutil.Process(pid)
+			except psutil.NoSuchProcess:
+				return
+			else:
+				for child in parent.children(recursive=True):
+					child.kill()
+				self._process.kill()
+				self._process.wait()
 
 
 	def complete(self, report: Callable[[str, JSONOBJ], None]) -> JSONOBJ:
