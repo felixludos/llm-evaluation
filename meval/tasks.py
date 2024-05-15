@@ -74,7 +74,7 @@ class Environment(AbstractEnvironment, fig.Configurable):
 
 
 	def report_launch(self, info: JSONOBJ, **details: JSONABLE):
-		if self._workspace is not None:
+		if self._workspace is not None and 'TASK_LOG' not in os.environ:
 			details['path'] = str(self._workspace)
 		if self._include_config:
 			details['config'] = self._config

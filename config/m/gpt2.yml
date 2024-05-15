@@ -1,0 +1,12 @@
+
+
+_base: [reqs/gpu]
+
+
+model-id: openai-community/gpt2
+
+max-total-tokens: 1024
+max-input-tokens: 1023
+
+
+

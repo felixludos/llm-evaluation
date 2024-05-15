@@ -6,3 +6,4 @@
 # from . import util
 # from . import chat
 from . import server
+from . import cluster

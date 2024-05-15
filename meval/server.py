@@ -46,8 +46,7 @@ class LocalEnvironment(Environment):
 class InferenceServer(AbstractTask, fig.Configurable):
 	# region init
 	def __init__(self,
-				 command: str,
-				 serverurl: str = None,
+				 task_command: str,
 				 port: Union[str, int] = 3000,
 				 allow_stdout: bool = True,
 
@@ -75,11 +74,10 @@ class InferenceServer(AbstractTask, fig.Configurable):
 
 				 **kwargs):
 		super().__init__(**kwargs)
-		self.serverurl = serverurl
 		self._process = None
 		self._exit_reason = None
-		self._command_base = command
-		if '{port}' not in command:
+		self._command_base = task_command
+		if '{port}' not in task_command:
 			raise ValueError('WARNING: command does not contain {port} placeholder')
 		self.workspace = None
 		self._port = port
@@ -156,8 +154,8 @@ class InferenceServer(AbstractTask, fig.Configurable):
 		self._process = subprocess.Popen(cmd, shell=True, text=True, executable="/bin/bash", env=os.environ.copy(),
 										 stdout=self._logfile.open('a'), stderr=self._logfile.open('a'))
 		server_info = {
-			'model_id': self._server_args.get('model_id', 'bigscience/bloom-560m'),
-			'model_dtype': self._server_args.get('model_dtype', 'torch.float16'),
+			'model_id': self._server_args.get('model-id', 'bigscience/bloom-560m'),
+			'model_dtype': self._server_args.get('model-dtype', 'torch.float16'),
 		}
 		return {'pid': self._process.pid,
 				# 'msg': str(self._msgfile), 'log': str(self._logfile),
@@ -211,9 +209,9 @@ class InferenceServer(AbstractTask, fig.Configurable):
 
 				info = self._get_server_info()
 
-				self._report('connected', {'server': info, 'url': self._get_server_url(),
-										   'shards': self._shard_load_info,
-										   'snapshot': self._get_resource_snapshot()})
+				self._report('connected', {'shards': self._shard_load_info,
+										   'snapshot': self._get_resource_snapshot(),
+										   'server': info, 'url': self._get_server_url(),})
 
 
 	def _get_server_url(self):

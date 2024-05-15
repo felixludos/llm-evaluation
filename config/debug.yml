@@ -1,12 +1,12 @@
 
-_meta.script_name: serve
+#_meta.script_name: serve
 #_meta.script_name: sandbox
+_meta.script_name: submit-llm
+
+#_base: [local]
 
 
-_base: [local]
-
-
-#model-id: google/gemma-2b-it
+model-id: google/gemma-2b-it
 
 
 #command: source $CONDA_PREFIX/etc/profile.d/conda.sh; conda activate llm; text-generation-launcher
