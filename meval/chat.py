@@ -2,7 +2,7 @@ import omnifig as fig
 # import asyncio
 import requests
 from functools import lru_cache, cached_property
-import gradio as gr
+# import gradio as gr
 # from huggingface_hub import InferenceClient
 from openai import OpenAI
 
@@ -56,6 +56,7 @@ class ChatInference:
 
 
 	def launch(self):
+		import gradio as gr
 		gr.ChatInterface(
 			self.step,
 			chatbot=gr.Chatbot(height=690),
