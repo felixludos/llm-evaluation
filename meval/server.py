@@ -159,7 +159,9 @@ class InferenceServer(AbstractTask, fig.Configurable):
 			'model_id': self._server_args.get('model_id', 'bigscience/bloom-560m'),
 			'model_dtype': self._server_args.get('model_dtype', 'torch.float16'),
 		}
-		return {'pid': self._process.pid, 'msg': str(self._msgfile), 'log': str(self._logfile), 'port': self._port,
+		return {'pid': self._process.pid,
+				# 'msg': str(self._msgfile), 'log': str(self._logfile),
+				'port': self._port,
 				'server': server_info, 'snapshot': self._get_resource_snapshot()}
 
 
@@ -209,16 +211,18 @@ class InferenceServer(AbstractTask, fig.Configurable):
 
 				info = self._get_server_info()
 
-				self._report('connected', {'server': info, 'shards': self._shard_load_info,
+				self._report('connected', {'server': info, 'url': self._get_server_url(),
+										   'shards': self._shard_load_info,
 										   'snapshot': self._get_resource_snapshot()})
+
+
+	def _get_server_url(self):
+		return f'http://{socket.gethostname()}:{self._port}'
+
 
 	def _get_server_info(self):
 		time.sleep(1) # to avoid timing issues
-		if self.serverurl is None:
-			return requests.get(f'http://127.0.0.1:{self._port}/info').json()
-		else:
-			return requests.get(f'http://{self.serverurl}/info').json()
-
+		return requests.get(f'{self._get_server_url()}/info').json()
 
 
 	def _get_resource_snapshot(self):
@@ -264,116 +268,6 @@ class InferenceServer(AbstractTask, fig.Configurable):
 def start_server(cfg: fig.Configuration):
 	cfg.push('server._type', 'tgi-server', silent=True, overwrite=False)
 	return start_task(cfg, task_key='server')
-
-
-	# working_dir = reporter.prepare(cfg)
-	#
-	# launch_info = server.launch(working_dir)
-	# reporter.report_launch(launch_info)
-	#
-	# while True:
-	# 	try:
-	# 		exit_info = server.monitor(reporter)
-	# 	except Exception as error:
-	# 		error_info = server.handle(error)
-	# 		if error_info is not None:
-	# 			reporter.report_error(error_info)
-	# 			raise error
-	# 	else:
-	# 		assert exit_info is not None, f'Monitor must return some exit info: {server}'
-	# 		reporter.report_exit(exit_info)
-	# 		break
-	#
-	# code = exit_info.get('code', None)
-	# return code
-	#
-	# # old
-	#
-	# listen_freq = cfg.pull('listen-freq', 1)
-	#
-	# manifest_path = cfg.pull('manifest', '~/manifest.jsonl')
-	# manifest_path = Path(manifest_path).expanduser()
-	#
-	# event_root = cfg.pull('events', '~/events/')
-	# event_root = Path(event_root).expanduser()
-	# event_root.mkdir(exist_ok=True)
-	#
-	# reporter.prepare(cfg)
-	#
-	#
-	# if cfg.pull('dry-run', False):
-	# 	raise NotImplementedError
-	#
-	# # change directory and make sure environment vars are set
-	# working_dir = cfg.pull('working-dir', None)
-	# if working_dir is not None:
-	# 	os.chdir(working_dir)
-	#
-	#
-	# # fixed info
-	# ID = cfg.pull('job-id', os.environ.get('JOB_ID', None))
-	# name = cfg.pull('job-name', os.environ.get('JOB_NAME', None))
-	# event_path = event_root / f'{ID}.txt'
-	# event_path.touch()
-	#
-	# # launch server using singularity (capture output) as a subprocess
-	# pid = manager.launch()
-	#
-	#
-	# launch_info = {
-	# 	'event': 'launch',
-	# 	'id': ID,
-	# 	'host': hostname,
-	# 	'pid': pid,
-	# 	'name': name,
-	# 	'path': str(event_path),
-	# }
-	# if cfg.pull('include-config', False):
-	# 	launch_info['config'] = cfg.to_python()
-	# launch_info['info'] = manager.info()
-	#
-	# with manifest_path.open('a') as f:
-	# 	f.write(json.dumps({'time': datetime.now().isoformat(), **launch_info}) + '\n')
-	#
-	#
-	# # listen kill trigger
-	#
-	# exit_code = manager.monitor(reporter)
-	#
-	# # report exit
-	#
-	#
-	# pass
-
-
-
-class _Logger:
-	def __init__(self, filename, mirror=True):
-		self.mirror = mirror
-		self._stdout = sys.stdout
-		self._stderr = sys.stderr
-		self.logfile = open(filename, "a+")
-
-	def write(self, message):
-		if self.mirror:
-			self._stdout.write(message)
-		self.logfile.write(message)
-
-	def flush(self):
-		if self.mirror:
-			self._stdout.flush()
-		self.logfile.flush()
-
-	def __enter__(self):
-		sys.stdout = self
-		sys.stderr = self
-		return self
-
-	def __exit__(self, exc_type, exc_val, exc_tb):
-		sys.stdout = self._stdout
-		sys.stderr = self._stderr
-		self.logfile.close()
-		return False
 
 
 
