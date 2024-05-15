@@ -2,7 +2,7 @@
 env._type: cluster-env
 
 
-command: singularity run --nv --bind ~/workspace/singe/data/:/data ~/workspace/singe/text-generation-inference.sif' --port {port} -e
+command: singularity run --nv --bind ~/workspace/singe/data/:/data ~/workspace/singe/text-generation-inference.sif --port {port} -e
 
 
 #job_id:
