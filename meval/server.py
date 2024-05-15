@@ -47,6 +47,7 @@ class InferenceServer(AbstractTask, fig.Configurable):
 	# region init
 	def __init__(self,
 				 command: str,
+				 serverurl: str = None,
 				 port: Union[str, int] = 3000,
 				 allow_stdout: bool = True,
 
@@ -74,6 +75,7 @@ class InferenceServer(AbstractTask, fig.Configurable):
 
 				 **kwargs):
 		super().__init__(**kwargs)
+		self.serverurl = serverurl
 		self._process = None
 		self._exit_reason = None
 		self._command_base = command
@@ -212,7 +214,11 @@ class InferenceServer(AbstractTask, fig.Configurable):
 
 	def _get_server_info(self):
 		time.sleep(1) # to avoid timing issues
-		return requests.get(f'http://127.0.0.1:{self._port}/info').json()
+		if self.serverurl is None:
+			return requests.get(f'http://127.0.0.1:{self._port}/info').json()
+		else:
+			return requests.get(f'http://{self.serverurl}/info').json()
+
 
 
 	def _get_resource_snapshot(self):
