@@ -3,6 +3,7 @@ from .imports import *
 import sys
 
 
+
 @fig.script('submit-llm')
 def submit_llm(cfg: fig.Configuration):
 	command = cfg.pull('command', None, silent=True)

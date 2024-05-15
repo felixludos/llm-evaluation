@@ -5,6 +5,9 @@ env._type: cluster-env
 task-command: singularity run --nv --bind ~/workspace/singe/data/:/data ~/workspace/singe/text-generation-inference.sif --port {port} -e
 
 
+working-dir: /home/fleeb/workspace/code/llm-evaluation
+
+
 #job_id:
 #  _type: env-var
 #  var: JOB_ID
