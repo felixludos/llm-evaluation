@@ -65,7 +65,7 @@ class InferenceServer(AbstractTask, fig.Configurable):
 				 max_best_of: int = None,
 				 max_stop_sequences: int = None,
 				 max_top_n_tokens: int = None,
-				 max_input_tokens: int = None,
+				 max_input_length: int = None,
 				 max_total_tokens: int = None,
 
 				 waiting_served_ratio: float = None, # 0.3
@@ -106,8 +106,8 @@ class InferenceServer(AbstractTask, fig.Configurable):
 			server_args['max-stop-sequences'] = max_stop_sequences
 		if max_top_n_tokens is not None:
 			server_args['max-top-n-tokens'] = max_top_n_tokens
-		if max_input_tokens is not None:
-			server_args['max-input-tokens'] = max_input_tokens
+		if max_input_length is not None:
+			server_args['max-input-tokens'] = max_input_length
 		if max_total_tokens is not None:
 			server_args['max-total-tokens'] = max_total_tokens
 		if waiting_served_ratio is not None:
@@ -126,6 +126,8 @@ class InferenceServer(AbstractTask, fig.Configurable):
 		super().prepare(env)
 		self.env = env
 		self.workspace = env.workspace
+		if isinstance(env, ClusterEnvironment) and 'max-input-tokens' in self._server_args:
+			self._server_args['max-input-length'] = self._server_args.pop('max-input-tokens')
 
 	def _build_command(self):
 		args = ' '.join([f'--{k}' if v is True else f'--{k} {v}' for k, v in self._server_args.items()
