@@ -1,0 +1,11 @@
+
+_base: [reqs/gpu]
+
+
+model-id: google/gemma-2b-it
+
+
+
+
+
+

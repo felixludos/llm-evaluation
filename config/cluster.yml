@@ -7,6 +7,10 @@ task-command: singularity run --nv --bind ~/workspace/singe/data/:/data ~/worksp
 
 working-dir: /home/fleeb/workspace/code/llm-evaluation
 
+time-limit: 10
+
+bid: 50
+
 
 #job_id:
 #  _type: env-var

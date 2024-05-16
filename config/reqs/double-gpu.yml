@@ -1,0 +1,6 @@
+
+_base: [reqs/gpu-big]
+
+gpu: 2
+ram: 256
+cpu: 16

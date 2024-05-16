@@ -1,0 +1,8 @@
+
+
+
+_base: [reqs/gpu]
+
+
+model-id: bigscience/bloom-560m
+

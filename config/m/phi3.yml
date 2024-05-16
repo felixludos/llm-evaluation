@@ -1,0 +1,8 @@
+
+_base: [reqs/gpu]
+
+model-id: microsoft/Phi-3-mini-4k-instruct
+
+trust-remote-code: yes
+
+

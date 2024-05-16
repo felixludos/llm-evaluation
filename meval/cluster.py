@@ -6,6 +6,11 @@ import sys
 
 @fig.script('submit-llm')
 def submit_llm(cfg: fig.Configuration):
+	try:
+		from mpi_cluster.submit_jobs import create_jobs
+	except ImportError as error:
+		raise ImportError('Please install mpi_cluster to use this command (github: felixludos/mpi-cluster)') from error
+
 	command = cfg.pull('command', None, silent=True)
 	if command is None:
 		prefix = cfg.pull('prefix', 'fig serve cluster')
@@ -17,7 +22,8 @@ def submit_llm(cfg: fig.Configuration):
 
 		cfg.push('command', command)
 
-	return fig.run_script('mpi_cluster:submit', cfg)
+	# return fig.run_script('mpi_cluster:submit', cfg)
+	return create_jobs(cfg, command=command)
 
 
 

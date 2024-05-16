@@ -1,0 +1,7 @@
+
+gpu: 1
+ram: 128
+cpu: 8
+
+gpu-mem: 70 # at least 70Gb of GPU memory
+

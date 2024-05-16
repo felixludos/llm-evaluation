@@ -1,0 +1,8 @@
+
+_base: [reqs/gpu]
+
+model-id: bert-base-uncased
+
+max-input-length: 511
+max-total-tokens: 512
+
