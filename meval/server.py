@@ -59,7 +59,7 @@ class InferenceServer(AbstractTask, fig.Configurable):
 				 model_id: str = None, # 'bigscience/bloom-560m'
 
 				 sharded: bool = None,
-				 num_shards: int = None,
+				 num_shard: int = None,
 
 				 quantize: str = None,
 				 speculate: int = None,
@@ -79,6 +79,8 @@ class InferenceServer(AbstractTask, fig.Configurable):
 				 max_batch_total_tokens: int = None,
 
 				 **kwargs):
+		if max_total_tokens is not None and max_input_length is None:
+			max_input_length = max_total_tokens - 1
 		super().__init__(**kwargs)
 		self._process = None
 		self._exit_reason = None
@@ -94,8 +96,8 @@ class InferenceServer(AbstractTask, fig.Configurable):
 			server_args['model-id'] = model_id
 		if sharded is not None:
 			server_args['sharded'] = sharded
-		if num_shards is not None:
-			server_args['num_shards'] = num_shards
+		if num_shard is not None:
+			server_args['num-shard'] = num_shard
 		if quantize is not None:
 			server_args['quantize'] = quantize
 		if speculate is not None:
