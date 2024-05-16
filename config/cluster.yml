@@ -5,7 +5,8 @@ env._type: cluster-env
 task-command: singularity run --nv --bind ~/workspace/singe/data/:/data ~/workspace/singe/text-generation-inference.sif --port {port} -e
 
 
-working-dir: /home/fleeb/workspace/code/llm-evaluation
+#working-dir: /home/fleeb/workspace/code/llm-evaluation
+repo-working-dir: yes
 
 time-limit: 10
 

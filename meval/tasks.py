@@ -22,12 +22,11 @@ class Environment(AbstractEnvironment, fig.Configurable):
 		self._workspace = None
 
 
-	def prepare(self, manager: AbstractManager, task: AbstractTask) -> Self:
+	def prepare(self, manager: AbstractManager, task: AbstractTask = None) -> Self:
 		assert self._task is None, 'Environment is already prepared'
 		self._manager = manager
 		self._task = task
 		self._prepare(manager, task)
-		task.prepare(self)
 		return super().prepare(manager, task)
 
 
@@ -151,6 +150,12 @@ class Manager(AbstractManager, fig.Configurable):
 			else:
 				return candidate
 
+
+def default_environment(*, manager=None):
+	env = Environment()
+	if manager is None:
+		manager = Manager()
+	return env.prepare(manager)
 
 
 @fig.script('start')

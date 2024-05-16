@@ -1,12 +1,15 @@
 
 #_meta.script_name: serve
 #_meta.script_name: sandbox
-_meta.script_name: submit-llm
+#_meta.script_name: submit-llm
+_meta.script_name: chat
 
 #_base: [local]
 
+task-log: /is/cluster/fleeb/log.jsonl
+working-root: /is/cluster/fleeb/tasks
 
-model-id: google/gemma-2b-it
+#model-id: google/gemma-2b-it
 
 
 #command: source $CONDA_PREFIX/etc/profile.d/conda.sh; conda activate llm; text-generation-launcher
@@ -15,7 +18,7 @@ model-id: google/gemma-2b-it
 #command: conda activate llm && /home/fleeb/.cargo/bin/text-generation-launcher
 #command: singularity run --nv --bind singe/data:/data singe/text-generation-inference.sif
 
-port: 8080
+#port: 8080
 
 
 

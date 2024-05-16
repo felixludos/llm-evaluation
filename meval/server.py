@@ -214,12 +214,12 @@ class InferenceServer(AbstractTask, fig.Configurable):
 				self._shard_load_info[rank] = dt
 
 			elif line.endswith('Connected'):
-
 				info = self._get_server_info()
-
 				self._report('connected', {'shards': self._shard_load_info,
 										   'snapshot': self._get_resource_snapshot(),
-										   'server': info, 'url': self._get_server_url(),})
+										   'server': info,
+										   'url': self._get_server_url(),
+										   })
 
 
 	def _get_server_url(self):

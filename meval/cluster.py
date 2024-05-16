@@ -1,4 +1,5 @@
 from .imports import *
+from .util import repo_root
 
 import sys
 
@@ -10,6 +11,9 @@ def submit_llm(cfg: fig.Configuration):
 		from mpi_cluster.submit_jobs import create_jobs
 	except ImportError as error:
 		raise ImportError('Please install mpi_cluster to use this command (github: felixludos/mpi-cluster)') from error
+
+	if cfg.pull('repo-working-dir', True):
+		cfg.push('working-dir', str(repo_root))
 
 	command = cfg.pull('command', None, silent=True)
 	if command is None:
