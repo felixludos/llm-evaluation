@@ -6,13 +6,15 @@ from functools import lru_cache, cached_property
 import socket, requests
 
 
+
 class ServerSeeker:
 	def __init__(self, host: str = None):
 		self.host = host or socket.gethostname()
 
 
 	def _is_remote(self, host: str):
-		return host != self.host
+		# return host != self.host
+		return False
 
 
 	def _launch_event(self, events: list[JSONOBJ]):
@@ -41,7 +43,7 @@ class ServerSeeker:
 
 	def to_server_url(self, events: list[JSONOBJ]) -> str:
 		launch = self._launch_event(events)
-		return f'http://{launch["host"]}:{launch["info"]["port"]}'
+		return f'http://{self.host or launch["host"]}:{launch["info"]["port"]}'
 
 
 	def server_status(self, history: Iterator[JSONOBJ], *, verify_live=False,
@@ -103,6 +105,7 @@ class ServerSeeker:
 
 class Endpoint(fig.Configurable):
 	def __init__(self, url: str = None, **kwargs):
+		super().__init__(**kwargs)
 		self.url = url
 
 
@@ -123,8 +126,45 @@ class Endpoint(fig.Configurable):
 
 
 
+@fig.modifier('toked')
+class TokedEndpoint(Endpoint):
+	def __init__(self, *, use_local: bool = True, **kwargs):
+		super().__init__(**kwargs)
+		self.tokenizer = None
+		self.use_local = use_local
+
+
+	def connect(self, env: AbstractEnvironment = None):
+		super().connect(env)
+		if self.use_local and self.tokenizer is None:
+			try:
+				from transformers import AutoTokenizer
+			except ImportError:
+				pass
+			else:
+				self.tokenizer = AutoTokenizer.from_pretrained(self.info['model_id'])
+
+
+	def apply_chat_template(self, chat: list[dict[str, str]]) -> str:
+		if self.tokenizer is None:
+			raise ValueError('Tokenizer not loaded')
+		prompt = self.tokenizer.apply_chat_template(chat, tokenize=False, add_generation_prompt=True)
+		return prompt
+
+
+	def count(self, message: str | list[dict[str, str]]) -> int:
+		if not isinstance(message, str):
+			message = self.apply_chat_template(message)
+		if self.tokenizer is None:
+			data = requests.post(f'{self.url}/tokenize', json={'inputs': message}).json()
+			# [{"id": 578,"text": " and","start": 18,"stop": 22},]
+			return len(data)
+		return len(self.tokenizer.encode(message)) - int(not isinstance(message, str)) # chat template repeats bos
+
+
+
 @fig.component('chat-endpoint')
-class ChatEndpoint(Endpoint):
+class ChatEndpoint(TokedEndpoint):
 	@fig.silent_config_args('api_key')
 	def __init__(self, *,
 				 max_tokens: int = None,
@@ -138,13 +178,13 @@ class ChatEndpoint(Endpoint):
 				 frequency_penalty: float = None,
 				 presence_penalty: float = None,
 
-				 api_key: str = None, **kwargs):
+				 api_key: str = '-', **kwargs):
 		super().__init__(**kwargs)
 		self.client = None
 		self.api_key = api_key
 		self._call_model = 'tgi'
+		self._max_tokens = max_tokens
 		self._call_args = {
-			'max_tokens': max_tokens,
 			'seed': seed,
 			'stop': stop,
 			'temperature': temperature,
@@ -166,9 +206,16 @@ class ChatEndpoint(Endpoint):
 
 
 	def _client_call(self, chat: list[dict[str, str]], **kwargs):
+		max_new = self._max_tokens
+		if isinstance(self, TokedEndpoint):
+			num = self.count(chat)
+			max_new = self.info['max_total_tokens'] - num
+			max_new = max(1, max_new)
+
 		return self.client.chat.completions.create(
 			model=self._call_model,
 			messages=chat,
+			max_tokens = max_new,
 			**self._call_args,
 			**kwargs
 		)

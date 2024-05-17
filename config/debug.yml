@@ -4,10 +4,16 @@
 #_meta.script_name: submit-llm
 _meta.script_name: chat
 
+endpoint._mod: toked
+
 #_base: [local]
 
-task-log: /is/cluster/fleeb/log.jsonl
-working-root: /is/cluster/fleeb/tasks
+#task-log: /is/cluster/fleeb/log.jsonl
+#working-root: /is/cluster/fleeb/tasks
+task-log: \\wsl.localhost\Ubuntu-20.04\home\fleeb\log.jsonl
+working-root: \\wsl.localhost\Ubuntu-20.04\home\fleeb\tasks
+
+
 
 #model-id: google/gemma-2b-it
 
