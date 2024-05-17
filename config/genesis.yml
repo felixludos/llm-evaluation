@@ -1,0 +1,4 @@
+
+_base: [local]
+
+#task-command: singularity run --nv --bind ~/.cache/huggingface/hub/:/data --bind ~/.cache/huggingface/:/cache --env HF_HOME=/cache --bind /dev/shm:/dev/shm $KHAN/research/llm-evaluation/singe/text-generation-inference-1_4.sif --port {port}
