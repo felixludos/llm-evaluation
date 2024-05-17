@@ -1,14 +1,8 @@
 from .imports import *
-import omnifig as fig
-# import asyncio
-import requests
-from functools import lru_cache, cached_property
-# import gradio as gr
-# from huggingface_hub import InferenceClient
 
-
-from .tasks import start_task, Environment
-from .client import Client, ChatEndpoint
+from .tasks import start_task
+from .client import Client
+from .endpoints import ChatEndpoint
 
 
 
@@ -50,7 +44,7 @@ class ChatInterface(Client, fig.Configurable):
 
 	def complete(self, report: Callable[[str, JSONOBJ], None]) -> JSONOBJ:
 		self.interface.queue().launch(server_name=self.host, server_port=self.port)
-		return {'reason': 'interface terminated'}
+		return {'reason': 'interface terminated unexpectedly'}
 
 
 	def step(self, message: str, history: list[tuple[str, str]]):

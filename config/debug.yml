@@ -2,16 +2,21 @@
 #_meta.script_name: serve
 #_meta.script_name: sandbox
 #_meta.script_name: submit-llm
-_meta.script_name: chat
+#_meta.script_name: chat
+_meta.script_name: calc
 
-endpoint._mod: toked
+#_meta.help: yes
+
+#endpoint._mod: toked
 
 #_base: [local]
 
+
+
 #task-log: /is/cluster/fleeb/log.jsonl
 #working-root: /is/cluster/fleeb/tasks
-task-log: \\wsl.localhost\Ubuntu-20.04\home\fleeb\log.jsonl
-working-root: \\wsl.localhost\Ubuntu-20.04\home\fleeb\tasks
+#task-log: \\wsl.localhost\Ubuntu-20.04\home\fleeb\log.jsonl
+#working-root: \\wsl.localhost\Ubuntu-20.04\home\fleeb\tasks
 
 
 

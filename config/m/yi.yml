@@ -1,0 +1,4 @@
+
+_base: [reqs/gpu]
+
+model-id: 01-ai/Yi-1.5-9B-Chat

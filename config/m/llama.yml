@@ -1,0 +1,5 @@
+
+_base: [reqs/gpu]
+
+model-id: meta-llama/Meta-Llama-3-8B-Instruct
+

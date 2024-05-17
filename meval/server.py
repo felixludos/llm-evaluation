@@ -115,7 +115,7 @@ class InferenceServer(AbstractTask, fig.Configurable):
 		if max_top_n_tokens is not None:
 			server_args['max-top-n-tokens'] = max_top_n_tokens
 		if max_input_length is not None:
-			server_args['max-input-tokens'] = max_input_length
+			server_args['max-input-length'] = max_input_length
 		if max_total_tokens is not None:
 			server_args['max-total-tokens'] = max_total_tokens
 		if waiting_served_ratio is not None:
