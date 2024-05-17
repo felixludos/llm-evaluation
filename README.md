@@ -6,8 +6,7 @@ This repo contains some scripts to help evaluate LLMs with a particular focus on
 
 ## Setup
 
-1. Clone the repo and install dependencies in `requirements.txt`
-   - note that there are a few dependencies that are somewhat volatile (as I'm maintaining/extending them in parallel) so for `omnibelt`, `omnifig`, and `omniply` keep a close eye on the versions, and generally make sure you have the latest versions of those packages installed.
+For this section, it is not necessary to use this repo directly.
 
 ### Manually Loading Models
 
@@ -64,6 +63,9 @@ Also, there are some examples of how to use the server in this jupyter [notebook
 ## QoL Wrappers
 
 This repo provides some wrappers to simplify the launching and monitoring of servers. Documentation for that is coming soon.
+
+To use these wrappers: Clone the repo and install dependencies in `requirements.txt`
+- note that there are a few dependencies that are somewhat volatile (as I'm maintaining/extending them in parallel) so for `omnibelt`, `omnifig`, and `omniply` keep a close eye on the versions, and generally make sure you have the latest versions of those packages installed.
 
 
 ### Launching the Server
