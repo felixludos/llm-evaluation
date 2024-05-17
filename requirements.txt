@@ -1,9 +1,3 @@
-torch
-torchvision
-transformers
-accelerate
-bitsandbytes
-sentencepiece
 tqdm
 tabulate
 pandas
@@ -12,3 +6,7 @@ fastapi
 gradio
 uvicorn
 psutil
+pynvml
+omnibelt
+omnifig
+omniply
