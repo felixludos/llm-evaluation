@@ -2,7 +2,7 @@
 from .imports import *
 
 
-from .calculations import Calculation
+from .calculations import Calculation, PersistentCalculation, AppendCalculation
 
 
 
@@ -27,13 +27,57 @@ def test_calc():
 
 	world = [_Kit(), _Source()]
 
+	products = ['a']
 
+	calc = Calculation(world=world, products=products)
+
+	ctx = calc.setup()
+
+	calc.work(ctx)
+
+	out = calc.finish(ctx)
+
+	assert out['a'] == 33
+
+
+class _PersistentCalc(PersistentCalculation, Calculation):
 	pass
 
 
+class _AppendCalc(AppendCalculation, Calculation):
+	pass
 
 
+from tempfile import TemporaryDirectory
+from contextlib import chdir
 
 
+def test_persistent_calc():
+	world = [_Kit(), _Source()]
 
+	products = ['a']
+
+	with TemporaryDirectory() as tempdir:
+		with chdir(tempdir):
+
+			path = Path(tempdir) / 'out.json'
+
+			assert not path.exists()
+
+			calc = _PersistentCalc(path, world=world, products=products)
+
+			ctx = calc.setup()
+
+			calc.work(ctx)
+
+			out = calc.finish(ctx)
+
+			assert out['a'] == 33
+
+			assert path.exists()
+
+			with path.open('r') as f:
+				data = json.load(f)
+
+				assert data['a'] == 33
 

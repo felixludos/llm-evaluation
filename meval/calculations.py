@@ -46,11 +46,7 @@ class AbstractCalculation(AbstractDescribable):
 
 
 
-class AbstractProcedure(AbstractCalculation):
-	def setup(self, source: SOURCE = None) -> SOURCE:
-		raise NotImplementedError
-
-
+class ProcedureBase(AbstractCalculation):
 	def work(self, source: SOURCE) -> Optional[SOURCE]:
 		for ctx in source:
 			self.step(ctx)
@@ -61,8 +57,6 @@ class AbstractProcedure(AbstractCalculation):
 		raise NotImplementedError
 
 
-	def finish(self, source: SOURCE) -> JSONABLE:
-		pass
 
 
 
@@ -91,41 +85,51 @@ class Worldly(AbstractCalculation):
 
 
 
-class CalculationBase(AbstractCalculation):
+class CreativeCalculation(AbstractCalculation):
+	def _create_system(self) -> SYSTEM:
+		return Context()
+
+
+	def setup(self, system: SYSTEM = None) -> SYSTEM:
+		if system is None:
+			system = self._create_system()
+		return super().setup(system)
+
+
+
+class SimpleCalculation(AbstractCalculation):
 	def __init__(self, products: Mapping[str, bool] | Iterable[str], **kwargs):
 		if isinstance(products, Mapping):
 			products = {name for name, value in products.items() if value}
 		if isinstance(products, str):
 			products = [products]
 		super().__init__(**kwargs)
-		self.result = None
 		self.products = products
 
 
-	def _create_system(self) -> SYSTEM:
-		return Context()
+	def work(self, system: SYSTEM) -> SYSTEM:
+		return {name: system[name] for name in self.products}
 
 
+
+class StickyCalculation(SimpleCalculation):
+	result = None
 	def setup(self, system: SYSTEM = None) -> SYSTEM:
 		self.result = None
-		if system is None:
-			system = self._create_system()
 		return super().setup(system)
 
-
 	def work(self, system: SYSTEM) -> SYSTEM:
-		self.result = {name: system[name] for name in self.products}
-		return system
+		self.result = super().work(system)
+		return self.result
 
-
-	def finish(self, state: SYSTEM) -> JSONABLE:
+	def finish(self, system: SYSTEM) -> JSONABLE:
 		result = self.result
 		self.result = None
 		return result
 
 
 
-class PersistentCalculation(CalculationBase):
+class PersistentCalculation(StickyCalculation):
 	def __init__(self, path: Path | str, append_mode: bool = False, **kwargs):
 		if isinstance(path, str) and 'json' not in path:
 			path = f'{path}.jsonl' if append_mode else f'{path}.json'
@@ -136,13 +140,13 @@ class PersistentCalculation(CalculationBase):
 
 
 	def finish(self, system: SYSTEM) -> JSONABLE:
+		result = super().finish(system)
 		with self.path.open('w') as f:
-			json.dump(self.result, f, indent=4)
-		return super().finish(system)
+			json.dump(result, f, indent=4)
+		return
 
 
-
-class AppendCalculation(CalculationBase):
+class AppendCalculation(SimpleCalculation):
 	def __init__(self, path: Path | str, append_mode: bool = False, **kwargs):
 		if isinstance(path, str) and 'jsonl' not in path:
 			path = f'{path}.jsonl'
@@ -155,8 +159,8 @@ class AppendCalculation(CalculationBase):
 		return super().setup(system)
 
 	def work(self, system: SYSTEM) -> SYSTEM:
-		system = super().work(system)
-		self._file.write(json.dumps(self.result, indent=4) + '\n')
+		result = super().work(system)
+		self._file.write(json.dumps(result, indent=4) + '\n')
 		return system
 
 	def finish(self, system: SYSTEM) -> JSONABLE:
@@ -165,14 +169,14 @@ class AppendCalculation(CalculationBase):
 
 
 
-class Calculation(Worldly, CalculationBase):
+class Calculation(Worldly, SimpleCalculation):
 	def __init__(self, world: Iterable[DescribableGadget] | Mapping[str, DescribableGadget] = (),
 				 products: Mapping[str, bool] | Iterable[str] = None, **kwargs):
 		super().__init__(world=world, products=products, **kwargs)
 
 
 
-class IterativeCalculator(AbstractProcedure):
+class Calculator(AbstractCalculation):
 	def __init__(self, calculations: Mapping[str, AbstractCalculation] | Iterable[AbstractCalculation], **kwargs):
 		super().__init__(**kwargs)
 		self.calculations = calculations
@@ -182,24 +186,30 @@ class IterativeCalculator(AbstractProcedure):
 		yield from self.calculations.values() if isinstance(self.calculations, Mapping) else self.calculations
 
 
-	def setup(self, source: SOURCE = None) -> SOURCE:
-		source = super().setup(source)
+	def setup(self, system: SYSTEM = None) -> SYSTEM:
+		system = super().setup(system)
 		for calc in self.sub():
-			source = calc.setup(source)
-		return source
+			system = calc.setup(system)
+		return system
 
 
-	def step(self, system: SYSTEM):
+	def work(self, system: SYSTEM) -> Optional[SYSTEM]:
 		for calc in self.sub():
 			calc.work(system)
 		return system
 
 
-	def finish(self, source: SOURCE) -> JSONABLE:
+	def finish(self, system: SYSTEM) -> JSONABLE:
 		if isinstance(self.calculations, Mapping):
-			return {name: calc.finish(source) for name, calc in self.calculations.items()}
+			return {name: calc.finish(system) for name, calc in self.calculations.items()}
 		for calc in self.sub():
-			calc.finish(source)
+			calc.finish(system)
+
+
+
+class IterativeCalculator(ProcedureBase, Calculator):
+	def step(self, system: SYSTEM):
+		return super(ProcedureBase, self).work(system)
 
 
 
