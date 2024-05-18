@@ -1,8 +1,23 @@
-
 from .imports import *
 
 
-from .calculations import Calculation, PersistentCalculation, AppendCalculation
+from tempfile import TemporaryDirectory
+from contextlib import chdir
+
+
+from .calculations import *
+
+
+class _Calc(StickyCalculation, Worldly, CreativeCalculation):
+	pass
+
+
+class _PersistentCalc(PersistentCalculation, _Calc):
+	pass
+
+
+class _AppendCalc(AppendCalculation, _Calc):
+	pass
 
 
 
@@ -11,15 +26,15 @@ class _Kit(ToolKit):
 	def get_a(self, b, c):
 		return b + c
 
+	@tool('c')
+	def get_c(self):
+		return 22
 
 class _Source(ToolKit):
 	@tool('b')
 	def get_b(self):
 		return 11
 
-	@tool('c')
-	def get_c(self):
-		return 22
 
 
 
@@ -29,7 +44,7 @@ def test_calc():
 
 	products = ['a']
 
-	calc = Calculation(world=world, products=products)
+	calc = _Calc(world=world, products=products)
 
 	ctx = calc.setup()
 
@@ -39,17 +54,6 @@ def test_calc():
 
 	assert out['a'] == 33
 
-
-class _PersistentCalc(PersistentCalculation, Calculation):
-	pass
-
-
-class _AppendCalc(AppendCalculation, Calculation):
-	pass
-
-
-from tempfile import TemporaryDirectory
-from contextlib import chdir
 
 
 def test_persistent_calc():
@@ -71,7 +75,6 @@ def test_persistent_calc():
 			calc.work(ctx)
 
 			out = calc.finish(ctx)
-
 			assert out['a'] == 33
 
 			assert path.exists()
@@ -80,4 +83,66 @@ def test_persistent_calc():
 				data = json.load(f)
 
 				assert data['a'] == 33
+
+
+
+class _Mean(Aggregator):
+	def finish(self, system: SYSTEM) -> JSONABLE:
+		history = super().finish(system)
+		return sum(history) / len(history)
+
+
+
+from omniply.apps import DictGadget
+
+class _ContextGenerator:
+	def __init__(self, key='b', values=[1, 2, 3]):
+		self.gadgets = []
+		self.key = key
+		self.values = iter(values)
+
+	def extend(self, gadgets):
+		self.gadgets.extend(gadgets)
+		return self
+
+	def __iter__(self):
+		return self
+
+	def __next__(self):
+		raw = next(self.values)
+		seed = DictGadget({self.key: raw})
+		return Context(seed).extend(self.gadgets)
+
+
+
+class _Itr(CreativeCalculation, Worldly, IterativeCalculator):
+	def _create_system(self) -> SYSTEM:
+		return _ContextGenerator()
+
+
+
+
+def test_itr():
+
+	world = [_Kit()]
+
+	calc = _Itr(world=world, calculations={'mean': _Mean('a')})
+
+	src = calc.setup()
+
+	calc.work(src)
+
+	out = calc.finish(src)
+
+	assert out['mean'] == 24.0
+
+
+
+
+
+
+
+
+
+
 

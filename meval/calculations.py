@@ -97,6 +97,17 @@ class CreativeCalculation(AbstractCalculation):
 
 
 
+class SimpleSelector(AbstractCalculation):
+	def __init__(self, target: str, **kwargs):
+		super().__init__(**kwargs)
+		self.target = target
+
+
+	def work(self, system: SYSTEM) -> SYSTEM:
+		return system[self.target]
+
+
+
 class SimpleCalculation(AbstractCalculation):
 	def __init__(self, products: Mapping[str, bool] | Iterable[str], **kwargs):
 		if isinstance(products, Mapping):
@@ -143,7 +154,7 @@ class PersistentCalculation(StickyCalculation):
 		result = super().finish(system)
 		with self.path.open('w') as f:
 			json.dump(result, f, indent=4)
-		return
+		return result
 
 
 class AppendCalculation(SimpleCalculation):
@@ -213,103 +224,21 @@ class IterativeCalculator(ProcedureBase, Calculator):
 
 
 
-###############################################################################################33
+class Aggregator(SimpleSelector):
+	history = None
+
+	def setup(self, system: SYSTEM = None) -> SYSTEM:
+		self.history = []
+		return super().setup(system)
 
 
-
-class GenericPlayer(AbstractCalculation):
-	def __init__(self, world: Iterable[AbstractGadget] | Mapping[str, AbstractGadget] = (),
-				 out: Mapping[str, Iterable[str]] | Mapping[str, Mapping[str, bool]] = None, **kwargs):
-		if not isinstance(world, Mapping):
-			world = {str(i): gadget for i, gadget in enumerate(world)}
-		if out is None:
-			out = {}
-		super().__init__(**kwargs)
-		self.world = world
-		products = {name: sorted([key for key, value in contents.items() if value]) if isinstance(contents, Mapping)
-					else (sorted(contents) if isinstance(contents, set) else list(contents))
-					for name, contents in out.items()}
-		self.products = products
-
-	def _process_products(self, products: Iterable[str] | Mapping[str, bool] | Mapping[str, Iterable[str]] | Mapping[str, Mapping[str, bool]]):
-		if not isinstance(products, Mapping):
-			products = {str(i): keys for i, keys in enumerate(products)}
-		return products
-
-
-	def describe(self) -> DESCRIPTION:
-		return {k: v.describe() for k, v in self.world.items()}
-
-
-	def contents(self) -> Iterator[AbstractGadget]:
-		yield from self.world.values()
-
-
-	def setup(self, src: Context = None):
-		if src is None:
-			src = Context()
-		for gadget in self.contents():
-			if isinstance(gadget, AbstractStaged):
-				gadget.stage()
-		return src.extend(self.contents())
-
-
-	def play(self, state: Context) -> dict[str, dict[str, Any]]:
-		result = {name: {key: state[key] for key in keys} for name, keys in self.products.items()}
+	def work(self, system: SYSTEM) -> SYSTEM:
+		result = super().work(system)
+		self.history.append(result)
 		return result
 
 
-	def finish(self, state: Context) -> JSONABLE:
-		content = {name: {key: state[key] for key in keys} for name, keys in self.products.items()}
-		for name, data in content.items():
-			with self.root.joinpath(f'{name}.json').open('w') as f:
-				json.dump(data, f, indent=4)
-		return content
-
-
-
-@fig.component('simple-player')
-class SimplePlayer(GenericPlayer):
-	def __init__(self, world: Iterable[AbstractGadget] | Mapping[str, AbstractGadget] = (),
-				 out: Iterable[str] | Mapping[str, bool] = None,
-				 out_name: str = 'out', **kwargs):
-		super().__init__(world=world, out={out_name: out}, **kwargs)
-
-
-
-CTX_GENERATOR = Union[int, Iterable[Context]]
-
-
-class IterativePlayer(GenericPlayer):
-	def __init__(self, source: CTX_GENERATOR,
-				 viewers: Mapping[str, AbstractGadget] = (), **kwargs):
-		super().__init__(**kwargs)
-		self.source = source
-		self.viewers = viewers
-		self.progression = None
-
-	def _as_iterator(self, source: CTX_GENERATOR) -> Iterator[Context]:
-		for ctx in source:
-			ctx.extend(self.contents())
-			yield ctx
-
-	def setup(self, src: Context = None):
-		if src is None:
-			src = self._as_iterator(self.source)
-		for gadget in self.contents():
-			if isinstance(gadget, AbstractStaged):
-				gadget.stage()
-		return src.extend(self.contents())
-
-	def play(self, src: Context) -> dict[str, dict[str, Any]]:
-		for ctx in src:
-			for viewer in self.viewers:
-				viewer.play(ctx)
-
-		return
-
-	def finish(self, state: Context) -> JSONABLE:
-		return {name: viewer.finish() for name, viewer in self.viewers.items()}
-
+	def finish(self, system: SYSTEM) -> JSONABLE:
+		return self.history
 
 
