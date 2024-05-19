@@ -249,11 +249,22 @@ from omniply.core.abstract import AbstractMutable
 
 
 
+IterableSource = Union[Iterable[int], int]
+
+
+
 class SimpleIteration:
-	def __init__(self, itr: Iterator[int], key: str = 'ID', **kwargs):
+	def __init__(self, src: IterableSource, key: str = 'ID', **kwargs):
 		super().__init__(**kwargs)
-		self._itr = iter(itr)
+		self._past = 0
+		self._len = None
+		self._itr = iter(src)
 		self._key = key
+
+	def _process_iterator(self, src: IterableSource):
+		if isinstance(src, int):
+			src = range(src)
+		return iter(src)
 
 
 	def _create_context(self, value: int):
@@ -271,8 +282,8 @@ class SimpleIteration:
 
 
 class MutableIteration(SimpleIteration, AbstractMutable):
-	def __init__(self, itr: Iterator[int], key: str = 'ID', **kwargs):
-		super().__init__(itr=itr, key=key, **kwargs)
+	def __init__(self, src: IterableSource, key: str = 'ID', **kwargs):
+		super().__init__(src=src, key=key, **kwargs)
 		self._gadgets = []
 
 
@@ -285,6 +296,46 @@ class MutableIteration(SimpleIteration, AbstractMutable):
 		return self
 
 
+
+class CountableIteration(SimpleIteration):
+	def __init__(self, src: IterableSource, key: str = 'ID', **kwargs):
+		super().__init__(src=src, key=key, **kwargs)
+		self._past = 0
+		self._len = None
+
+
+	def _process_iterator(self, src: IterableSource):
+		if isinstance(src, int):
+			self._len = src
+		else:
+			try:
+				self._len = len(src)
+			except TypeError:
+				pass
+		return super()._process_iterator(src)
+
+
+	def __len__(self):
+		return self.total()
+
+
+	def total(self):
+		return self._len
+
+
+	def remaining(self):
+		if self._len is not None:
+			return self._len - self._past
+
+
+	def past(self):
+		return self._past
+
+
+	def __next__(self):
+		ctx = super().__next__()
+		self._past += 1
+		return ctx
 
 
 
