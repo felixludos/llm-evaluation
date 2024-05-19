@@ -157,6 +157,7 @@ class PersistentCalculation(StickyCalculation):
 		return result
 
 
+
 class AppendCalculation(SimpleCalculation):
 	def __init__(self, path: Path | str, append_mode: bool = False, **kwargs):
 		if isinstance(path, str) and 'jsonl' not in path:
@@ -240,5 +241,53 @@ class Aggregator(SimpleSelector):
 
 	def finish(self, system: SYSTEM) -> JSONABLE:
 		return self.history
+
+
+
+from omniply.apps import DictGadget
+from omniply.core.abstract import AbstractMutable
+
+
+
+class SimpleIteration:
+	def __init__(self, itr: Iterator[int], key: str = 'ID', **kwargs):
+		super().__init__(**kwargs)
+		self._itr = iter(itr)
+		self._key = key
+
+
+	def _create_context(self, value: int):
+		return Context(DictGadget({self._key: value}))
+
+
+	def __iter__(self):
+		return self
+
+
+	def __next__(self):
+		value = next(self._itr)
+		return self._create_context(value)
+
+
+
+class MutableIteration(SimpleIteration, AbstractMutable):
+	def __init__(self, itr: Iterator[int], key: str = 'ID', **kwargs):
+		super().__init__(itr=itr, key=key, **kwargs)
+		self._gadgets = []
+
+
+	def _create_context(self, value: int):
+		return super()._create_context(value).extend(self._gadgets)
+
+
+	def extend(self, gadgets):
+		self._gadgets.extend(gadgets)
+		return self
+
+
+
+
+
+
 
 

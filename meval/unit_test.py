@@ -94,31 +94,13 @@ class _Mean(Aggregator):
 
 
 from omniply.apps import DictGadget
-
-class _ContextGenerator:
-	def __init__(self, key='b', values=[1, 2, 3]):
-		self.gadgets = []
-		self.key = key
-		self.values = iter(values)
-
-	def extend(self, gadgets):
-		self.gadgets.extend(gadgets)
-		return self
-
-	def __iter__(self):
-		return self
-
-	def __next__(self):
-		raw = next(self.values)
-		seed = DictGadget({self.key: raw})
-		return Context(seed).extend(self.gadgets)
+from .calculations import MutableIteration
 
 
 
 class _Itr(CreativeCalculation, Worldly, IterativeCalculator):
 	def _create_system(self) -> SYSTEM:
-		return _ContextGenerator()
-
+		return MutableIteration(itr=[1, 2, 3], key='b')
 
 
 

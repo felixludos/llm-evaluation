@@ -20,7 +20,6 @@ class Client(AbstractTask):
 
 
 
-
 @fig.component('calculation')
 class CalculationClient(Client):
 	def __init__(self, calc: AbstractCalculation, head_name: str = None, **kwargs):
@@ -29,6 +28,7 @@ class CalculationClient(Client):
 		self.system = None
 		self.workspace = None
 		self.head_name = head_name
+
 
 	def prepare(self, env: AbstractEnvironment) -> None:
 		super().prepare(env)
