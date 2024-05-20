@@ -2,12 +2,18 @@ from typing import List, Dict, Any, Tuple, Union, Mapping, Optional, Iterable, I
 from pathlib import Path
 from omnibelt import load_json, save_json, load_csv, load_yaml, save_yaml, load_csv_rows, pformat
 import omnifig as fig
-from omniply import tool, Context, ToolKit, AbstractGadget
-from omniply.apps.staging import AbstractStaged
+from omniply import tool, Context, ToolKit as _ToolKit, AbstractGadget
+from omniply.apps import DictGadget
+from omniply.core.abstract import AbstractMutable
+from omniply.apps.staging import AbstractStaged, Staged, StagedGaggle
 from datetime import datetime, timedelta
 from functools import cached_property, lru_cache
 import requests, socket
 import json
+
+
+class ToolKit(_ToolKit, StagedGaggle):
+	pass
 
 
 JSONABLE = Union[str, int, float, bool, None, dict[str, 'JSONABLE'], list['JSONABLE']]

@@ -1,7 +1,8 @@
+from omniply.apps.staging import AbstractPlan
 from .imports import *
 
 from .abstract import AbstractEnvironment
-
+from .tasks import get_environment
 
 
 class ServerSeeker:
@@ -100,14 +101,23 @@ class ServerSeeker:
 
 
 
-class Endpoint(fig.Configurable):
-	def __init__(self, url: str = None, **kwargs):
+class Endpoint(fig.Configurable, ToolKit):
+	def __init__(self, url: str = None, access_info: bool = True, **kwargs):
 		super().__init__(**kwargs)
+		self._access_info = access_info
 		self.url = url
 
 
-	def connect(self, env: AbstractEnvironment = None):
+	def _stage(self, plan: AbstractPlan):
+		super()._stage(plan)
+		self.connect()
+		if self._access_info:
+			self.include(DictGadget(self.info))
+
+
+	def connect(self):
 		if self.url is None:
+			env = get_environment()
 			self.url = self._infer_server(env.world_history())
 
 
@@ -131,8 +141,8 @@ class TokedEndpoint(Endpoint):
 		self.use_local = use_local
 
 
-	def connect(self, env: AbstractEnvironment = None):
-		super().connect(env)
+	def connect(self):
+		super().connect()
 		if self.use_local and self.tokenizer is None:
 			try:
 				from transformers import AutoTokenizer
@@ -142,6 +152,7 @@ class TokedEndpoint(Endpoint):
 				self.tokenizer = AutoTokenizer.from_pretrained(self.info['model_id'])
 
 
+	@tool('prompt')
 	def apply_chat_template(self, chat: list[dict[str, str]]) -> str:
 		if self.tokenizer is None:
 			raise ValueError('Tokenizer not loaded')
@@ -149,6 +160,7 @@ class TokedEndpoint(Endpoint):
 		return prompt
 
 
+	@tool('num_tokens')
 	def count(self, message: str | list[dict[str, str]]) -> int:
 		if not isinstance(message, str):
 			message = self.apply_chat_template(message)
@@ -157,6 +169,14 @@ class TokedEndpoint(Endpoint):
 			# [{"id": 578,"text": " and","start": 18,"stop": 22},]
 			return len(data)
 		return len(self.tokenizer.encode(message)) - int(not isinstance(message, str)) # chat template repeats bos
+
+
+
+@fig.component('gen-endpoint')
+class GenerationEndpoint(TokedEndpoint):
+	@tool('response')
+	def generate(self, prompt: str):
+		raise NotImplementedError
 
 
 
@@ -192,8 +212,8 @@ class ChatEndpoint(TokedEndpoint):
 		self._call_args = {key: value for key, value in self._call_args.items() if value is not None}
 
 
-	def connect(self, env: AbstractEnvironment = None):
-		super().connect(env)
+	def connect(self):
+		super().connect()
 		assert self.client is None, f'already connected to {self.url}'
 		try:
 			from openai import OpenAI
@@ -222,6 +242,7 @@ class ChatEndpoint(TokedEndpoint):
 		)
 
 
+	@tool('response')
 	def respond(self, chat: list[dict[str, str]]) -> str:
 		return self._client_call(chat).choices[0].message.content
 

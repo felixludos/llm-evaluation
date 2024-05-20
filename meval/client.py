@@ -59,6 +59,3 @@ class CalculationClient(Client):
 
 
 
-
-
-

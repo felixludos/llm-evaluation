@@ -8,11 +8,11 @@ from contextlib import chdir
 from .calculations import *
 
 
-class _Calc(StickyCalculation, Worldly, CreativeCalculation):
+class _Calc(StickyCalculation, Calculation):
 	pass
 
 
-class _PersistentCalc(PersistentCalculation, _Calc):
+class _PersistentCalc(RecordedCalculation, _Calc):
 	pass
 
 
@@ -68,7 +68,7 @@ def test_persistent_calc():
 
 			assert not path.exists()
 
-			calc = _PersistentCalc(path, world=world, products=products)
+			calc = _PersistentCalc(path=path, world=world, products=products)
 
 			ctx = calc.setup()
 
@@ -98,9 +98,9 @@ from .calculations import MutableIteration
 
 
 
-class _Itr(CreativeCalculation, Worldly, IterativeCalculator):
+class _Itr(IterativeCalculation, MultiCalculation):
 	def _create_system(self) -> SYSTEM:
-		return MutableIteration(itr=[1, 2, 3], key='b')
+		return MutableIteration(src=[1, 2, 3], key='b')
 
 
 

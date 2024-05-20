@@ -92,6 +92,7 @@ class Environment(AbstractEnvironment, fig.Configurable):
 @fig.component('default-manager')
 class Manager(AbstractManager, fig.Configurable):
 	_Environment = Environment
+	_current_env = None
 
 	def __init__(self, env: AbstractEnvironment = None,
 				 task_log: Union[str, Path] = os.environ.get('TASK_LOG', '~/log.jsonl'),
@@ -105,6 +106,16 @@ class Manager(AbstractManager, fig.Configurable):
 		self.working_root = Path(working_root).expanduser().resolve()
 
 
+	@classmethod
+	def set_current_environment(cls, env: AbstractEnvironment):
+		cls._current_env = env
+
+
+	@classmethod
+	def get_current_environment(cls) -> AbstractEnvironment:
+		return cls._current_env
+
+
 	def world_history(self) -> Iterator[JSONOBJ]:
 		with self.task_log.open('r') as f:
 			for line in f:
@@ -115,6 +126,7 @@ class Manager(AbstractManager, fig.Configurable):
 		self.working_root.mkdir(exist_ok=True)
 		self.task_log.touch()
 		env = self._Environment() if self.env is None else self.env
+		self.set_current_environment(env)
 		env.record_config(self._config)
 		return env.prepare(self, task)
 
@@ -151,11 +163,18 @@ class Manager(AbstractManager, fig.Configurable):
 				return candidate
 
 
-def default_environment(*, manager=None):
-	env = Environment()
-	if manager is None:
-		manager = Manager()
-	return env.prepare(manager)
+
+# def default_environment(*, manager=None):
+# 	env = Environment()
+# 	if manager is None:
+# 		manager = Manager()
+# 	return env.prepare(manager)
+
+
+
+def get_environment() -> AbstractEnvironment:
+	return Manager.get_current_environment()
+
 
 
 @fig.script('start')

@@ -82,6 +82,11 @@ class AbstractManager:
 		raise NotImplementedError
 
 
+	@classmethod
+	def get_current_environment(cls):
+		raise NotImplementedError
+
+
 
 class AbstractTask:
 	@property
