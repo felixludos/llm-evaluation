@@ -7,3 +7,5 @@
 from . import chat
 from . import server
 from . import cluster
+from . import calculations
+from . import benchmarks

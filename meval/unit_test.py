@@ -119,7 +119,7 @@ def test_itr():
 
 
 
-from .benchmarks import Table, Benchmark
+from .benchmarks import Table, CustomBenchmark
 
 
 def test_procedure():
@@ -127,11 +127,11 @@ def test_procedure():
 	dummy_data = [
 		{'x': 1, 'y': 2},
 		{'x': 2, 'y': 4},
-		{'x': 3, 'y': 7}, # noise
+		{'x': 3, 'y': 7}, # bad sample
 		{'x': 4, 'y': 8},
 		{'x': 5, 'y': 10},
 	]
-	# dataset = Benchmark(table=dummy_data)
+	# dataset = CustomBenchmark(table=dummy_data)
 	dataset = Table.from_rows(dummy_data)
 
 	@tool('pred')
@@ -143,10 +143,10 @@ def test_procedure():
 		return abs(y - pred)
 
 	@tool('correct')
-	def eval_metric(loss):
-		return loss == 0
+	def is_correct(y, pred):
+		return y == pred
 
-	world = [dataset, model, l1_loss, eval_metric]
+	world = [dataset, model, l1_loss, is_correct]
 
 	proc = Procedure(source=dataset, # what is the source of the iteration (subclass of AbstractMogul)
 					 world=world, # should all be subclasses of AbstractGadget (e.g. Toolkits and tools)

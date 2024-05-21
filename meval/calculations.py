@@ -111,9 +111,7 @@ class SimpleSelector(AbstractCalculation):
 
 
 class MultiSelector(AbstractCalculation):
-	def __init__(self, products: Mapping[str, bool] | Iterable[str], **kwargs):
-		if isinstance(products, Mapping):
-			products = {name for name, value in products.items() if value}
+	def __init__(self, products: Iterable[str], **kwargs):
 		if isinstance(products, str):
 			products = [products]
 		super().__init__(**kwargs)
@@ -172,7 +170,7 @@ class RecordedCalculation(PersistentCalculation, StickyCalculation, MultiSelecto
 	def finish(self, system: SYSTEM) -> JSONABLE:
 		result = super().finish(system)
 		with self.path.open('w') as f:
-			json.dump(result, f, indent=4)
+			json.dump(result, f, indent=4, sort_keys=isinstance(self.products, set))
 		return result
 
 
@@ -196,7 +194,7 @@ class AppendCalculation(PersistentCalculation, MultiSelector):
 
 	def work(self, system: SYSTEM) -> SYSTEM:
 		result = super().work(system)
-		self._file.write(json.dumps(result, indent=4) + '\n')
+		self._file.write(json.dumps(result, indent=4, sort_keys=isinstance(self.products, set)) + '\n')
 		return system
 
 	def finish(self, system: SYSTEM) -> JSONABLE:
@@ -260,7 +258,8 @@ class IterativeCalculation(ProcedureBase, MultiCalculation, Calculation):
 
 
 	def step(self, system: SYSTEM):
-		return super(ProcedureBase, self).work(system)
+		out = super(ProcedureBase, self).work(system)
+		return out
 
 
 
@@ -286,42 +285,35 @@ class Aggregator(SimpleSelector):
 ##############################################################
 
 
-
-class Computable(fig.Configurable, Runnable, MultiCalculation, Worldly):
-	_default_recorder = None
-
-	def __init__(self, rec: Mapping[str, Union[Mapping[str, bool], Iterable[str]]] = None,
-				 world: Mapping[str, AbstractGadget] = None,
-				 calculations: dict[str, AbstractCalculation] = None, **kwargs):
-		if calculations is None:
-			calculations = {}
-		super().__init__(calculations=calculations, world=world, **kwargs)
-		self._process_recordings(rec)
-
-
-	def _process_recordings(self, recordings: Mapping[str, Any]):
-		if recordings is not None:
-			self.calculations.update({name: self._default_recorder(
-				products=set(key for key, value in calc.items() if value) if isinstance(calc, Mapping) else list(calc),
-																   path=name)
-					for name, calc in recordings.items()})
-
-
-
-
-from .client import Client, AbstractEnvironment
+from .abstract import AbstractEnvironment
+from .client import Client
 from .tasks import start_task
 
 
 
 @fig.component('computation')
-class ComputationClient(Client):
-	def __init__(self, calc: AbstractCalculation, head_name: str = None, **kwargs):
-		super().__init__(**kwargs)
-		self.calc = calc
+class ComputationClient(Client, fig.Configurable, Runnable, MultiCalculation, Worldly):
+	_default_recorder = None
+
+	def __init__(self, rec: Mapping[str, Union[Mapping[str, bool], Iterable[str]]] = None,
+				 world: Mapping[str, AbstractGadget] = None,
+				 calculations: dict[str, AbstractCalculation] = None, *,
+				 head_name: str = None, **kwargs):
+		if calculations is None:
+			calculations = {}
+		super().__init__(calculations=calculations, world=world, **kwargs)
+		self._process_recordings(rec)
 		self.system = None
 		self._env = None
 		self.head_name = head_name
+
+
+	def _process_recordings(self, recordings: Mapping[str, Any]):
+		if recordings is not None:
+			self.calculations.update({name: self._default_recorder(
+				products=set(key for key, value in calc.items() if value) if isinstance(calc, Mapping) else calc,
+																   path=name)
+					for name, calc in recordings.items()})
 
 
 	@property
@@ -335,8 +327,9 @@ class ComputationClient(Client):
 
 
 	def launch(self, report: Callable[[str, JSONOBJ], None]) -> JSONOBJ:
-		self.system = self.calc.setup()
-		desc = self.calc.describe()
+		assert len(self.calculations) > 0, 'No calculations were provided'
+		self.system = self.setup()
+		desc = self.describe()
 		if self.head_name is not None:
 			with self.workspace.joinpath(f'{self.head_name}.json').open('w') as f:
 				json.dump(desc, f)
@@ -344,20 +337,20 @@ class ComputationClient(Client):
 
 
 	def complete(self, report: Callable[[str, JSONOBJ], None]) -> JSONABLE:
-		self.calc.work(self.system)
-		out = self.calc.finish(self.system)
+		self.work(self.system)
+		out = self.finish(self.system)
 		return out
 
 
 
 @fig.component('calc')
-class Calculator(Computable, Calculation):
+class Calculator(ComputationClient, Calculation):
 	_default_recorder = RecordedCalculation
 
 
 
 @fig.component('proc')
-class Procedure(Computable, IterativeCalculation):
+class Procedure(ComputationClient, IterativeCalculation):
 	_default_recorder = AppendCalculation
 	_default_iterator = Guru
 
@@ -376,8 +369,7 @@ class Procedure(Computable, IterativeCalculation):
 
 @fig.script('compute')
 def start_computation(cfg: fig.Configuration):
-	cfg.push('calc._type', 'calc', silent=True, overwrite=False)
-	cfg.push('client._type', 'computation', silent=True, overwrite=False)
+	cfg.push('client._type', 'calc', silent=True, overwrite=False)
 	return start_task(cfg, task_key='client')
 
 

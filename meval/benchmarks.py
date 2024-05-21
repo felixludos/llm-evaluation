@@ -1,12 +1,15 @@
 from omniply.apps.staging import AbstractPlan
 from .imports import *
 
+from .descriptions import Describable
+
+import re
 from omniply.apps import Table as _Table
 import csv
 
 
-
-class Table(_Table, Staged, AbstractMogul):
+@fig.component('raw-table')
+class Table(fig.Configurable, _Table, Staged, AbstractMogul):
 	@classmethod
 	def from_rows(cls, data_in_rows: list[dict[str,Any]]):
 		return cls(data_in_columns=cls._validate_rows(data_in_rows))
@@ -17,8 +20,8 @@ class Table(_Table, Staged, AbstractMogul):
 		return cls(data_in_columns=cls._validate_columns(data_in_columns))
 
 
-	def __init__(self, data_in_columns: dict[str, list[Any]] = None, *, index_key='idx', **kwargs):
-		super().__init__(data_in_columns=data_in_columns, **kwargs)
+	def __init__(self, data: dict[str, list[Any]] = None, *, index_key='idx', **kwargs):
+		super().__init__(data_in_columns=data, **kwargs)
 		self._index_gizmo = index_key
 
 
@@ -27,7 +30,7 @@ class Table(_Table, Staged, AbstractMogul):
 
 
 	def guide(self) -> AbstractGuru:
-		return Guru(self.number_of_rows, key=self.index_key)
+		return Guru(self.number_of_rows, key=self.index_key).include(self)
 
 
 	@property
@@ -39,12 +42,17 @@ class Table(_Table, Staged, AbstractMogul):
 
 
 
+@fig.component('table')
 class FileTable(Table):
 	def __init__(self, path: Path | str, **kwargs):
 		if path is not None:
 			path = Path(path)
 		super().__init__(**kwargs)
 		self.path = path
+
+
+	def describe(self) -> dict[str, Any]:
+		return dict(path=str(self.path))
 
 
 	def _load_data(self) -> dict[str, list[Any]]:
@@ -104,7 +112,7 @@ class NLP_Table(FileTable):
 
 
 
-class Benchmark(ToolKit, AbstractMogul):
+class CustomBenchmark(ToolKit, AbstractMogul):
 	_Table = Table
 
 	def __init__(self, *, table: Table | list[dict[str, Any]] | dict[str, list[Any]] = None, **kwargs):
@@ -127,6 +135,29 @@ class Benchmark(ToolKit, AbstractMogul):
 		super()._stage(plan)
 
 
+
+@fig.component('gsm8k')
+class GSM8k(FileTable):
+	def _load_data(self) -> dict[str, list[Any]]:
+
+		data = super()._load_data()
+
+		full = data['answer']
+
+		expr = [re.findall(r'<<.*?>>', line) for line in full]
+		expr = [[e[2:-2] for e in line] for line in expr]
+
+		full = [re.sub(r'<<.*?>>', '', line) for line in full]
+
+		rationale, answer = zip(*[line.split('\n####') for line in full])
+		rationale = [line.strip() for line in rationale]
+		answer = [line.strip() for line in answer]
+
+		data['rationale'] = rationale
+		data['answer'] = answer
+		data['expr'] = expr
+
+		return data
 
 
 
