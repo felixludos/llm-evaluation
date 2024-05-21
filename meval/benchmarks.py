@@ -4,20 +4,20 @@ from .imports import *
 from .descriptions import Describable
 
 import re
-from omniply.apps import Table as _Table
+# from omniply.apps import Table as _Table
 import csv
 
 
 @fig.component('raw-table')
-class Table(fig.Configurable, _Table, Staged, AbstractMogul):
+class Table(fig.Configurable, TableBase, Staged, AbstractMogul):
 	@classmethod
 	def from_rows(cls, data_in_rows: list[dict[str,Any]]):
-		return cls(data_in_columns=cls._validate_rows(data_in_rows))
+		return cls(data=cls._validate_rows(data_in_rows))
 
 
 	@classmethod
 	def from_columns(cls, data_in_columns: dict[str, list[Any]]):
-		return cls(data_in_columns=cls._validate_columns(data_in_columns))
+		return cls(data=cls._validate_columns(data_in_columns))
 
 
 	def __init__(self, data: dict[str, list[Any]] = None, *, index_key='idx', **kwargs):

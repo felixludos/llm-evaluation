@@ -164,16 +164,19 @@ class Manager(AbstractManager, fig.Configurable):
 
 
 
-# def default_environment(*, manager=None):
-# 	env = Environment()
-# 	if manager is None:
-# 		manager = Manager()
-# 	return env.prepare(manager)
+def default_environment(*, manager=None):
+	env = Environment()
+	if manager is None:
+		manager = Manager()
+	return env.prepare(manager)
 
 
 
-def get_environment() -> AbstractEnvironment:
-	return Manager.get_current_environment()
+def get_environment(force=True) -> AbstractEnvironment:
+	env = Manager.get_current_environment()
+	if env is None and force:
+		env = default_environment()
+	return env
 
 
 

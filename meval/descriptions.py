@@ -55,10 +55,10 @@ class DescriptionRegistry(Class_Registry):
 			return obj.display(obj.describe(), detail=detail)
 		if isinstance(obj, Mapping):
 			return '{' + ', '.join(f'{k}: {self.display(v, detail=detail)}' for k, v in obj.items()) + '}'
-		if isinstance(obj, Iterable):
-			return '[' + ', '.join(self.display(v, detail=detail) for v in obj) + ']'
 		if isinstance(obj, _primitive):
 			return str(obj)
+		if isinstance(obj, Iterable):
+			return '[' + ', '.join(self.display(v, detail=detail) for v in obj) + ']'
 		raise ValueError(f'Cannot display object: {obj}')
 
 

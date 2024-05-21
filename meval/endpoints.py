@@ -1,8 +1,11 @@
 from omniply.apps.staging import AbstractPlan
 from .imports import *
 
+from huggingface_hub import InferenceClient
+
 from .abstract import AbstractEnvironment
 from .tasks import get_environment
+from .descriptions import Describable, DESCRIBABLE
 
 
 class ServerSeeker:
@@ -101,11 +104,15 @@ class ServerSeeker:
 
 
 
-class Endpoint(fig.Configurable, ToolKit):
-	def __init__(self, url: str = None, access_info: bool = True, **kwargs):
-		super().__init__(**kwargs)
+class Endpoint(fig.Configurable, Describable, ToolKit):
+	def __init__(self, url: str = None, access_info: bool = True, gauge=None, **kwargs):
+		super().__init__(gauge=gauge, **kwargs)
 		self._access_info = access_info
 		self.url = url
+
+
+	def describe(self) -> DESCRIBABLE:
+		return {'url': self.url, }#'info': self.info}
 
 
 	def _stage(self, plan: AbstractPlan):
@@ -152,7 +159,7 @@ class TokedEndpoint(Endpoint):
 				self.tokenizer = AutoTokenizer.from_pretrained(self.info['model_id'])
 
 
-	@tool('prompt')
+	@tool('chat_prompt')
 	def apply_chat_template(self, chat: list[dict[str, str]]) -> str:
 		if self.tokenizer is None:
 			raise ValueError('Tokenizer not loaded')
@@ -174,9 +181,15 @@ class TokedEndpoint(Endpoint):
 
 @fig.component('gen-endpoint')
 class GenerationEndpoint(TokedEndpoint):
+	client = None
+
+	def connect(self):
+		super().connect()
+		self.client = InferenceClient(model=self.url)
+
 	@tool('response')
 	def generate(self, prompt: str):
-		raise NotImplementedError
+		return self.client.text_generation(prompt=prompt)
 
 
 
@@ -240,6 +253,11 @@ class ChatEndpoint(TokedEndpoint):
 			**self._call_args,
 			**kwargs
 		)
+
+
+	@tool('chat')
+	def to_chat(self, prompt: str) -> list[dict[str, str]]:
+		return [{'role': 'user', 'content': prompt}]
 
 
 	@tool('response')
