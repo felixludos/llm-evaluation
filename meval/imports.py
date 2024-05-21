@@ -5,7 +5,8 @@ import omnifig as fig
 from omniply import tool, Context, ToolKit as _ToolKit, AbstractGadget
 from omniply.apps import DictGadget
 from omniply.core.abstract import AbstractMutable
-from omniply.apps.staging import AbstractStaged, Staged, StagedGaggle
+from omniply.apps.staging import AbstractStaged, Staged, StagedGaggle, AbstractPlan
+from omniply.apps.guides import Guru, MutableGuru, AbstractMogul, AbstractGuru
 from datetime import datetime, timedelta
 from functools import cached_property, lru_cache
 import requests, socket
@@ -18,8 +19,6 @@ class ToolKit(_ToolKit, StagedGaggle):
 
 JSONABLE = Union[str, int, float, bool, None, dict[str, 'JSONABLE'], list['JSONABLE']]
 JSONOBJ = dict[str, JSONABLE]
-
-
 
 
 

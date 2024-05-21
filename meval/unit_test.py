@@ -94,13 +94,12 @@ class _Mean(Aggregator):
 
 
 from omniply.apps import DictGadget
-from .calculations import MutableIteration
 
 
 
 class _Itr(IterativeCalculation, MultiCalculation):
 	def _create_system(self) -> SYSTEM:
-		return MutableIteration(src=[1, 2, 3], key='b')
+		return Guru(src=[1, 2, 3], key='b')
 
 
 
@@ -117,6 +116,56 @@ def test_itr():
 	out = calc.finish(src)
 
 	assert out['mean'] == 24.0
+
+
+
+from .benchmarks import Table, Benchmark
+
+
+def test_procedure():
+
+	dummy_data = [
+		{'x': 1, 'y': 2},
+		{'x': 2, 'y': 4},
+		{'x': 3, 'y': 7}, # noise
+		{'x': 4, 'y': 8},
+		{'x': 5, 'y': 10},
+	]
+	# dataset = Benchmark(table=dummy_data)
+	dataset = Table.from_rows(dummy_data)
+
+	@tool('pred')
+	def model(x):
+		return x * 2
+
+	@tool('loss')
+	def l1_loss(y, pred):
+		return abs(y - pred)
+
+	@tool('correct')
+	def eval_metric(loss):
+		return loss == 0
+
+	world = [dataset, model, l1_loss, eval_metric]
+
+	proc = Procedure(source=dataset, # what is the source of the iteration (subclass of AbstractMogul)
+					 world=world, # should all be subclasses of AbstractGadget (e.g. Toolkits and tools)
+					 calculations={'accuracy': _Mean('correct'),
+								   'loss': _Mean('loss')})
+
+	# sys = proc.setup()
+	# proc.work(sys)
+	# out = proc.finish(sys)
+	out = proc.run()
+
+	assert out['accuracy'] == 0.8
+	assert out['loss'] == 0.2
+
+
+
+
+
+
 
 
 

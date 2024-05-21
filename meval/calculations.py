@@ -23,7 +23,7 @@ class DescribableGadget(AbstractGadget, AbstractDescribable): # TODO
 	pass
 
 
-SYSTEM = Context
+SYSTEM = Union[Context, AbstractGuru]
 SOURCE = Iterator[Context]
 
 
@@ -58,9 +58,15 @@ class ProcedureBase(AbstractCalculation):
 
 
 
-
-
 Mutable = list[DescribableGadget] # TODO
+
+
+
+class Runnable(AbstractCalculation):
+	def run(self):
+		system = self.setup()
+		self.work(system)
+		return self.finish(system)
 
 
 
@@ -238,6 +244,21 @@ class MultiCalculation(AbstractCalculation):
 
 
 class IterativeCalculation(ProcedureBase, MultiCalculation, Calculation):
+	def __init__(self, source: AbstractMogul, **kwargs):
+		super().__init__(**kwargs)
+		self.source = source
+
+
+	def setup(self, system: SYSTEM = None) -> SYSTEM:
+		if isinstance(self.source, AbstractStaged):
+			self.source.stage()
+		return super().setup(system)
+
+
+	def _create_system(self) -> SYSTEM:
+		return self.source.guide()
+
+
 	def step(self, system: SYSTEM):
 		return super(ProcedureBase, self).work(system)
 
@@ -262,150 +283,102 @@ class Aggregator(SimpleSelector):
 
 
 
-IterableSource = Union[Iterable[int], int]
-
-
-
-class SimpleIteration:
-	def __init__(self, src: IterableSource, key: str = 'idx', **kwargs):
-		super().__init__(**kwargs)
-		self._itr = self._process_iterator(src)
-		self._key = key
-
-
-	def _process_iterator(self, src: IterableSource):
-		if isinstance(src, int):
-			src = range(src)
-		return iter(src)
-
-
-	def _create_context(self, value: int):
-		return Context(DictGadget({self._key: value}))
-
-
-	def __iter__(self):
-		return self
-
-
-	def __next__(self):
-		value = next(self._itr)
-		return self._create_context(value)
-
-
-
-class MutableIteration(SimpleIteration, AbstractMutable):
-	def __init__(self, src: IterableSource, key: str = 'idx', **kwargs):
-		super().__init__(src=src, key=key, **kwargs)
-		self._gadgets = []
-
-
-	def _create_context(self, value: int):
-		return super()._create_context(value).extend(self._gadgets)
-
-
-	def extend(self, gadgets):
-		self._gadgets.extend(gadgets)
-		return self
-
-
-
-class CountableIteration(SimpleIteration):
-	def __init__(self, src: IterableSource, key: str = 'idx', **kwargs):
-		super().__init__(src=src, key=key, **kwargs)
-		self._past = 0
-		self._len = None
-
-	def _process_iterator(self, src: IterableSource):
-		if isinstance(src, int):
-			self._len = src
-		else:
-			try:
-				self._len = len(src)
-			except TypeError:
-				pass
-		return super()._process_iterator(src)
-
-	def __next__(self):
-		ctx = super().__next__()
-		self._past += 1
-		return ctx
-
-	def __len__(self):
-		return self.total
-
-	@property
-	def total(self):
-		return self._len
-
-	@property
-	def remaining(self):
-		if self._len is not None:
-			return self._len - self._past
-
-	@property
-	def past(self):
-		return self._past
-
-
-
 ##############################################################
 
 
-class AbstractSourced(AbstractGadget):
-	def as_source(self) -> Iterable[Context]:
-		raise NotImplementedError
 
-	def __iter__(self):
-		return self.as_source()
+class Computable(fig.Configurable, Runnable, MultiCalculation, Worldly):
+	_default_recorder = None
 
-
-
-class Live(fig.Configurable, PersistentCalculation, MultiCalculation):
-	_default_calc = None
-
-	def __init__(self, out: Mapping[str, Any], world: Mapping[str, AbstractGadget] = None, **kwargs):
-		super().__init__(calculations={}, world=world, **kwargs)
-		self.calculations.update(self._process_subs(out))
+	def __init__(self, rec: Mapping[str, Union[Mapping[str, bool], Iterable[str]]] = None,
+				 world: Mapping[str, AbstractGadget] = None,
+				 calculations: dict[str, AbstractCalculation] = None, **kwargs):
+		if calculations is None:
+			calculations = {}
+		super().__init__(calculations=calculations, world=world, **kwargs)
+		self._process_recordings(rec)
 
 
-	def _process_subs(self, raw_calcs: Mapping[str, Any]) -> dict[str, AbstractCalculation]:
-		return {name: calc if isinstance(calc, AbstractCalculation) else self._default_calc(products=calc, path=name)
-				for name, calc in raw_calcs.items()}
+	def _process_recordings(self, recordings: Mapping[str, Any]):
+		if recordings is not None:
+			self.calculations.update({name: self._default_recorder(
+				products=set(key for key, value in calc.items() if value) if isinstance(calc, Mapping) else list(calc),
+																   path=name)
+					for name, calc in recordings.items()})
+
+
+
+
+from .client import Client, AbstractEnvironment
+from .tasks import start_task
+
+
+
+@fig.component('computation')
+class ComputationClient(Client):
+	def __init__(self, calc: AbstractCalculation, head_name: str = None, **kwargs):
+		super().__init__(**kwargs)
+		self.calc = calc
+		self.system = None
+		self._env = None
+		self.head_name = head_name
+
+
+	@property
+	def workspace(self):
+		return self._env.workspace
+
+
+	def prepare(self, env: AbstractEnvironment) -> None:
+		super().prepare(env)
+		self._env = env
+
+
+	def launch(self, report: Callable[[str, JSONOBJ], None]) -> JSONOBJ:
+		self.system = self.calc.setup()
+		desc = self.calc.describe()
+		if self.head_name is not None:
+			with self.workspace.joinpath(f'{self.head_name}.json').open('w') as f:
+				json.dump(desc, f)
+		return desc
+
+
+	def complete(self, report: Callable[[str, JSONOBJ], None]) -> JSONABLE:
+		self.calc.work(self.system)
+		out = self.calc.finish(self.system)
+		return out
 
 
 
 @fig.component('calc')
-class Calculator(Live, Calculation):
-	_default_calc = RecordedCalculation
+class Calculator(Computable, Calculation):
+	_default_recorder = RecordedCalculation
 
 
 
 @fig.component('proc')
-class Procedure(Live, IterativeCalculation):
-	_default_calc = AppendCalculation
+class Procedure(Computable, IterativeCalculation):
+	_default_recorder = AppendCalculation
+	_default_iterator = Guru
 
-
-	def __init__(self, source: AbstractStaged, **kwargs):
-		super().__init__(**kwargs)
-		self.source = source
-
-
-	class _default_iterator(CountableIteration, MutableIteration):
-		pass
-
-
-	def setup(self, system: SYSTEM = None) -> SYSTEM:
-		self.source.stage()
-		return super().setup(system)
+	def __init__(self, source: AbstractMogul = None, auto_add_source: bool = True, **kwargs):
+		if source is None:
+			raise ValueError(f'No iteration source was provided for this procedure: {self}')
+		super().__init__(source=source, **kwargs)
+		if auto_add_source:
+			self.world['source'] = source
 
 
 	def _create_system(self) -> SYSTEM:
-		src = self.source.as_source()
-		if not isinstance(src, MutableIteration):
-			src = self._default_iterator(src=src)
-		return src
+		return self.source.guide() if isinstance(self.source, AbstractMogul) else self._default_iterator(self.source)
 
 
+
+@fig.script('compute')
+def start_computation(cfg: fig.Configuration):
+	cfg.push('calc._type', 'calc', silent=True, overwrite=False)
+	cfg.push('client._type', 'computation', silent=True, overwrite=False)
+	return start_task(cfg, task_key='client')
 
 
 

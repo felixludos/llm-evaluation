@@ -211,7 +211,7 @@ def start_task(cfg: fig.Configuration, *, manager: AbstractManager = None, task:
 					env.report_exit(exit_info)
 				break
 
-	code = exit_info.get('code', None)
+	code = exit_info.get('code', exit_info)
 	return code
 
 

@@ -3,13 +3,14 @@
 #_meta.script_name: sandbox
 #_meta.script_name: submit-llm
 #_meta.script_name: chat
-_meta.script_name: calc
+_meta.script_name: compute
 
 #_meta.help: yes
 
 #endpoint._mod: toked
 
 #_base: [local]
+
 
 
 
