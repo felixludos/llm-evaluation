@@ -5,3 +5,5 @@ cpu: 8
 
 gpu-mem: 70 # at least 70Gb of GPU memory
 
+
+bid: 100

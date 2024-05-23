@@ -1,6 +1,0 @@
-
-_base: [reqs/double-gpu]
-
-model-id: meta-llama/Meta-Llama-3-70B-Instruct
-
-num-shard: 2

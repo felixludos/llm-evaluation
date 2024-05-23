@@ -142,10 +142,11 @@ class Endpoint(fig.Configurable, Describable, ToolKit):
 
 @fig.modifier('toked')
 class TokedEndpoint(Endpoint):
-	def __init__(self, *, use_local: bool = True, **kwargs):
+	def __init__(self, *, use_local: bool = True, tokenizer: str = None, **kwargs):
 		super().__init__(**kwargs)
 		self.tokenizer = None
 		self.use_local = use_local
+		self.tokenizer_name = tokenizer
 
 
 	def connect(self):
@@ -156,7 +157,7 @@ class TokedEndpoint(Endpoint):
 			except ImportError:
 				pass
 			else:
-				self.tokenizer = AutoTokenizer.from_pretrained(self.info['model_id'])
+				self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name or self.info['model_id'])
 
 
 	@tool('chat_prompt')
