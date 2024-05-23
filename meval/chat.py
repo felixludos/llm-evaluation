@@ -20,7 +20,7 @@ class ChatInterface(Client, fig.Configurable):
 
 	def prepare(self, env) -> Self:
 		super().prepare(env)
-		self.endpoint.connect(env)
+		self.endpoint.connect()
 		return self
 
 
