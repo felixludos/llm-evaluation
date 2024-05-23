@@ -1,9 +1,11 @@
 
 #_meta.script_name: serve
 #_meta.script_name: sandbox
-#_meta.script_name: submit-llm
+_meta.script_name: submit-llm
 #_meta.script_name: chat
-_meta.script_name: compute
+#_meta.script_name: compute
+
+_base: [m/llama70b]
 
 #_meta.help: yes
 

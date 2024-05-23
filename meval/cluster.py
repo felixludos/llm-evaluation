@@ -27,7 +27,7 @@ def submit_llm(cfg: fig.Configuration):
 		cfg.push('command', command)
 
 	# return fig.run_script('mpi_cluster:submit', cfg)
-	return create_jobs(cfg, command=command)
+	return create_jobs(cfg, commands=command)
 
 
 
