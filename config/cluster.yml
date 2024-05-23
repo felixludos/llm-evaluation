@@ -2,7 +2,8 @@
 env._type: cluster-env
 
 
-task-command: singularity run --nv --bind ~/workspace/singe/data/:/data ~/workspace/singe/text-generation-inference.sif --port {port} -e
+#task-command: singularity run --nv --bind ~/workspace/singe/data/:/data ~/workspace/singe/text-generation-inference.sif --port {port} -e
+task-command: singularity run --nv --bind ~/workspace/singe/data/:/data --bind ~/.cache/huggingface/hub/:/cache --env HF_HOME=/cache ~/workspace/singe/text-generation-inference.sif --port {port}
 
 
 #working-dir: /home/fleeb/workspace/code/llm-evaluation
