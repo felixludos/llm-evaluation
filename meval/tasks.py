@@ -6,7 +6,7 @@ import os
 from functools import cached_property
 
 from .abstract import AbstractTask, AbstractManager, AbstractEnvironment
-
+from .util import get_task_root
 
 
 @fig.component('env')
@@ -95,15 +95,21 @@ class Manager(AbstractManager, fig.Configurable):
 	_current_env = None
 
 	def __init__(self, env: AbstractEnvironment = None,
-				 task_log: Union[str, Path] = os.environ.get('TASK_LOG', '~/log.jsonl'),
-				 working_root: Union[str, Path] = os.environ.get('TASK_WORK_ROOT', '~/tasks/'), **kwargs):
+				 task_root: Union[str, Path] = os.environ.get('TASK_ROOT', get_task_root()),
+				 # task_log: Union[str, Path] = os.environ.get('TASK_LOG', '~/log.jsonl'),
+				 # working_root: Union[str, Path] = os.environ.get('TASK_WORK_ROOT', '~/tasks/'),
+				 **kwargs):
 		if env is None:
 			env = self._Environment()
 		super().__init__(**kwargs)
 		self.env = env
 		self._config = None
-		self.task_log = Path(task_log).expanduser().resolve()
-		self.working_root = Path(working_root).expanduser().resolve()
+		self.task_root = Path(task_root).expanduser().resolve()
+
+
+	@property
+	def task_log(self) -> Path:
+		return self.task_root / 'log.jsonl'
 
 
 	@classmethod
@@ -123,7 +129,7 @@ class Manager(AbstractManager, fig.Configurable):
 
 
 	def prepare(self, task: AbstractTask) -> AbstractEnvironment:
-		self.working_root.mkdir(exist_ok=True)
+		self.task_root.mkdir(exist_ok=True)
 		self.task_log.touch()
 		env = self._Environment() if self.env is None else self.env
 		self.set_current_environment(env)
@@ -132,7 +138,7 @@ class Manager(AbstractManager, fig.Configurable):
 
 
 	def create_workspace(self, env: AbstractEnvironment) -> Path:
-		workspace = self.working_root / env.ident
+		workspace = self.task_root / env.ident
 		if workspace.exists():
 			raise ValueError(f'{env.ident} is not a unique task identifier')
 		workspace.mkdir()
@@ -152,12 +158,12 @@ class Manager(AbstractManager, fig.Configurable):
 
 
 	def generate_ident(self, env: AbstractEnvironment) -> str:
-		existing = list(self.working_root.glob('*'))
+		existing = list(self.task_root.glob('*'))
 		n = len(existing)
 
 		while True:
 			candidate = f'{str(n).zfill(3)}'
-			if (self.working_root / candidate).exists():
+			if (self.task_root / candidate).exists():
 				n += 1
 			else:
 				return candidate

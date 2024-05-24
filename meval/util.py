@@ -6,23 +6,23 @@ import re
 
 
 @fig.autocomponent('repo')
-def repo_root():
+def get_repo_root():
 	return Path(__file__).parent.parent.absolute()
 
 
 @fig.autocomponent('tmpl-root')
-def template_root():
-	return repo_root() / 'templates'
+def get_template_root():
+	return get_repo_root() / 'templates'
 
 
 @fig.autocomponent('data-root')
-def data_root():
-	return repo_root() / 'local_data'
+def get_data_root():
+	return get_repo_root() / 'local_data'
 
 
 @fig.autocomponent('task-root')
-def task_root():
-	return repo_root() / 'local_tasks'
+def get_task_root():
+	return get_repo_root() / 'local_tasks'
 
 
 

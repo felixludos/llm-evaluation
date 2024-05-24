@@ -1,3 +1,4 @@
 
 max-total-tokens: 1024
 max-input-length: 1023
+max-batch-prefill-tokens: 1024

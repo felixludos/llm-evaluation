@@ -243,9 +243,10 @@ class ChatEndpoint(TokedEndpoint):
 	def _client_call(self, chat: list[dict[str, str]], **kwargs):
 		max_new = self._max_tokens
 		# if isinstance(self, TokedEndpoint):
-		num = self.count(chat)
-		max_new = self.info['max_total_tokens'] - num
-		max_new = max(1, max_new)
+		if max_new is None:
+			num = self.count(chat)
+			max_new = self.info['max_total_tokens'] - num
+			max_new = max(1, max_new)
 
 		return self.client.chat.completions.create(
 			model=self._call_model,

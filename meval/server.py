@@ -73,6 +73,7 @@ class InferenceServer(AbstractTask, fig.Configurable):
 				 max_top_n_tokens: int = None,
 				 max_input_length: int = None,
 				 max_total_tokens: int = None,
+				 max_batch_prefill_tokens: int = None,
 
 				 waiting_served_ratio: float = None, # 0.3
 
@@ -118,6 +119,8 @@ class InferenceServer(AbstractTask, fig.Configurable):
 			server_args['max-input-length'] = max_input_length
 		if max_total_tokens is not None:
 			server_args['max-total-tokens'] = max_total_tokens
+		if max_batch_prefill_tokens is not None:
+			server_args['max-batch-prefill-tokens'] = max_batch_prefill_tokens
 		if waiting_served_ratio is not None:
 			server_args['waiting-served-ratio'] = waiting_served_ratio
 		if max_batch_total_tokens is not None:

@@ -32,8 +32,7 @@ class ChatInterface(Client, fig.Configurable):
 			textbox=gr.Textbox(placeholder="Chat with me!", container=False, scale=7),
 			# description=f"Spec: {self.info['model_device_type']} {self.info['model_dtype']}  "
 			# 			f"|  version: {self.info['version']}",
-			title=f"Chat with {self.endpoint.info['model_id']} ({self.endpoint.info['model_device_type']} "
-				  f"{self.endpoint.info['model_dtype'].replace('torch.', '')})",
+			title=f"Chat with {self.endpoint.info['model_id']} ({self.endpoint.info['model_device_type']})",
 			examples=self._examples,
 			retry_btn="Retry",
 			undo_btn="Undo",

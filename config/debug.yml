@@ -42,7 +42,9 @@ _meta.script_name: do
 
 keys: [prompt, response, answer, pred, is_correct]
 
-qidx: 26
+color: yes
+
+qidx: 30
 
 world:
   const:
@@ -61,6 +63,7 @@ world:
 
   model:
     _type: chat-endpoint
+    max-tokens: 500
 
   etmpl:
     _type: template
@@ -70,7 +73,8 @@ world:
 
   extractor:
     _type: chat-endpoint
-    max-tokens: 10
+    max-tokens: 20
+    url: http://localhost:3001
     gap:
       prompt: eprompt
       chat: echat
@@ -84,7 +88,8 @@ world:
 
   judge:
     _type: chat-endpoint
-    max-tokens: 2
+    max-tokens: 5
+    url: http://localhost:3001
     gap:
       prompt: jprompt
       chat: jchat
