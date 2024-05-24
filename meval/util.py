@@ -4,9 +4,25 @@ import os
 import re
 
 
+
 @fig.autocomponent('repo')
 def repo_root():
-	return Path(__file__).parent.parent
+	return Path(__file__).parent.parent.absolute()
+
+
+@fig.autocomponent('tmpl-root')
+def template_root():
+	return repo_root() / 'templates'
+
+
+@fig.autocomponent('data-root')
+def data_root():
+	return repo_root() / 'local_data'
+
+
+@fig.autocomponent('task-root')
+def task_root():
+	return repo_root() / 'local_tasks'
 
 
 

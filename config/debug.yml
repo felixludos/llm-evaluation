@@ -42,7 +42,7 @@ _meta.script_name: do
 
 keys: [prompt, response, answer, pred, is_correct]
 
-qidx: 25
+qidx: 26
 
 world:
   const:

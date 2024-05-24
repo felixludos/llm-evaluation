@@ -191,10 +191,12 @@ class InferenceServer(AbstractTask, fig.Configurable):
 
 
 	def _handle_cmd(self, message: str):
+		print(f'Received message: {message!r}')
 		if message.strip().startswith('exit'):
 			self._exit_reason = message.strip()
+			print(f'Exiting now because: {self._exit_reason}')
 			self._terminate()
-			print(f'Received message to exit: {self._exit_reason!r}')
+			# print(f'Received message to exit: {self._exit_reason!r}')
 		else:
 			raise NotImplementedError(f'Unknown command: {message!r}')
 
