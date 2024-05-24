@@ -171,6 +171,7 @@ class RecordedCalculation(PersistentCalculation, StickyCalculation, MultiSelecto
 		result = super().finish(system)
 		with self.path.open('w') as f:
 			json.dump(result, f, indent=4, sort_keys=isinstance(self.products, set))
+		print(f'Output saved to: {self.path}')
 		return result
 
 
@@ -281,6 +282,37 @@ class Aggregator(SimpleSelector):
 		return self.history
 
 
+#################
+
+
+@fig.component('printer')
+class PrinterCalculation(fig.Configurable, StickyCalculation, MultiSelector):
+	def __init__(self, keys: Iterable[str] | Mapping[str, bool] | str, print_available: bool = False):
+		if isinstance(keys, str):
+			assert keys == 'all', f'Invalid key: {keys!r}'
+			keys = None
+		if isinstance(keys, Mapping):
+			keys = set(key for key, value in keys.items() if value)
+		super().__init__(products=keys)
+		self._print_available = print_available
+
+	def setup(self, system: SYSTEM = None) -> SYSTEM:
+		system = super().setup(system)
+		if self.products is None:
+			self.products = set(system.gizmos())
+		if self._print_available:
+			print(f'Available products: {system.gizmos()}')
+		print(f'Printing: {self.products}')
+		return system
+
+
+	def finish(self, system: SYSTEM) -> JSONABLE:
+		out = super().finish(system)
+		# pretty print
+		print(json.dumps(out, indent=4, sort_keys=isinstance(self.products, set)))
+		return out
+
+
 
 ##############################################################
 
@@ -330,9 +362,12 @@ class ComputationClient(Client, fig.Configurable, Runnable, MultiCalculation, Wo
 		assert len(self.calculations) > 0, 'No calculations were provided'
 		self.system = self.setup()
 		desc = self.describe()
+		print(f'Job ident: {self._env.ident}')
 		if self.head_name is not None:
-			with self.workspace.joinpath(f'{self.head_name}.json').open('w') as f:
+			path = self.workspace.joinpath(f'{self.head_name}.json')
+			with path.open('w') as f:
 				json.dump(desc, f)
+			print(f'World description saved to: {path}')
 		return desc
 
 
@@ -372,6 +407,11 @@ def start_computation(cfg: fig.Configuration):
 	cfg.push('client._type', 'calc', silent=True, overwrite=False)
 	return start_task(cfg, task_key='client')
 
+
+@fig.script('do')
+def start_do(cfg: fig.Configuration, **kwargs):
+	cfg.push('calculations.printer._type', 'printer', silent=True, overwrite=False)
+	return start_computation(cfg)
 
 
 

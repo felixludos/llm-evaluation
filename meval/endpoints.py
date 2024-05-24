@@ -105,8 +105,8 @@ class ServerSeeker:
 
 
 class Endpoint(fig.Configurable, Describable, ToolKit):
-	def __init__(self, url: str = None, access_info: bool = True, gauge=None, **kwargs):
-		super().__init__(gauge=gauge, **kwargs)
+	def __init__(self, url: str = None, access_info: bool = True, gap=None, **kwargs):
+		super().__init__(gap=gap, **kwargs)
 		self._access_info = access_info
 		self.url = url
 

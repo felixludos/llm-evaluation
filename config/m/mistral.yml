@@ -1,4 +1,5 @@
 
 _base: [reqs/gpu]
 
-model-id: mistralai/Mistral-7B-Instruct-v0.2
+#model-id: mistralai/Mistral-7B-Instruct-v0.2
+model-id: mistralai/Mistral-7B-Instruct-v0.3

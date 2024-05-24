@@ -1,0 +1,6 @@
+#_base: [local]
+
+#task-command: singularity run --nv --bind ~/workspace/local_data/huggingface_cache/hub/:/data --bind ~/workspace/local_data/huggingface_cache/:/cache --env HF_HOME=/cache /is/cluster/fast/fleeb/singe/text-generation-inference-2_0.sif --port {port}
+
+task-command: singularity run --nv --bind ~/workspace/local_data/huggingface_cache/hub/:/data --bind ~/workspace/local_data/huggingface_cache/:/cache --env HF_HOME=/cache /is/cluster/fast/fleeb/singe/text-generation-inference-2_0.sif --port {port}
+

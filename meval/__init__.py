@@ -8,4 +8,5 @@ from . import chat
 from . import server
 from . import cluster
 from . import calculations
+from . import basics
 from . import benchmarks

@@ -20,8 +20,8 @@ class Table(fig.Configurable, TableBase, Staged, AbstractMogul):
 		return cls(data=cls._validate_columns(data_in_columns))
 
 
-	def __init__(self, data: dict[str, list[Any]] = None, *, index_key='idx', **kwargs):
-		super().__init__(data_in_columns=data, **kwargs)
+	def __init__(self, data: dict[str, list[Any]] = None, *, index_key='idx', gap: dict[str, str] = None, **kwargs):
+		super().__init__(data_in_columns=data, gap=gap, **kwargs)
 		self._index_gizmo = index_key
 
 
