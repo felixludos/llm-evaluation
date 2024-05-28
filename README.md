@@ -76,7 +76,7 @@ Locally:
 fig serve local m/gemma
 ```
 
-On the cluster:
+On the cluster (requires [`mpi_cluster` package](https://github.com/felixludos/mpi-cluster)):
 
 ```bash
 fig submit-llm m/gemma --bid 100
@@ -88,7 +88,7 @@ fig submit-llm m/gemma --bid 100
 Launch the Gradio chat interface offered by Huggingface locally (see [documentation](https://huggingface.co/docs/text-generation-inference/basic_tutorials/consuming_tgi#:~:text=for%20it%20here-,ChatUI,-ChatUI%20is%20an)) 
 
 ```bash
-fig chat
+fig chat --url http://localnet:3000
 ```
 
 ### Benchmark Evaluation

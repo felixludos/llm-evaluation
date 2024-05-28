@@ -10,3 +10,6 @@ pynvml
 omnibelt
 omnifig
 omniply
+watchdog
+psutil
+huggingface-hub
