@@ -12,4 +12,5 @@ omnifig
 omniply
 watchdog
 psutil
+openai
 huggingface-hub
