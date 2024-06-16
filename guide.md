@@ -84,3 +84,12 @@ The status of the server should be viewable at `local_tasks/log.jsonl`, or it ca
 
 Once the server is running, you can interface with it in
 
+
+
+## Mock Server
+
+Use [prism](https://github.com/stoplightio/prism) (can be installed through `npm`) to start a mock version of the TGI server. This can be useful for testing the client without needing to load/run a model.
+
+```bash
+prism mock assets/api-fixed.json
+```
