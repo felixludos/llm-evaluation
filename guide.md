@@ -93,3 +93,5 @@ Use [prism](https://github.com/stoplightio/prism) (can be installed through `npm
 ```bash
 prism mock assets/api-fixed.json
 ```
+
+Note that `api-fixed.json` replaces a missing schema `"#/components/schemas/Completion"` with `"#/components/schemas/ChatCompletion"` to avoid an error when starting the mock server. Not sure if that's right though.
