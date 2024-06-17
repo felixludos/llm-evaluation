@@ -157,7 +157,11 @@ class TokedEndpoint(Endpoint):
 			except ImportError:
 				pass
 			else:
-				self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name or self.info['model_id'])
+				try:
+					self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name or self.info['model_id'])
+				except OSError as e:
+					# print error with traceback
+					print(e)
 
 
 	@tool('chat_prompt')
@@ -169,7 +173,7 @@ class TokedEndpoint(Endpoint):
 
 
 	@tool('num_tokens')
-	def count(self, message: str | list[dict[str, str]]) -> int:
+	def count(self, message: str | list[dict[str, str]]) -> int | None:
 		if not isinstance(message, str):
 			message = self.apply_chat_template(message)
 		if self.tokenizer is None:
@@ -244,9 +248,13 @@ class ChatEndpoint(TokedEndpoint):
 		max_new = self._max_tokens
 		# if isinstance(self, TokedEndpoint):
 		if max_new is None:
-			num = self.count(chat)
-			max_new = self.info['max_total_tokens'] - num
-			max_new = max(1, max_new)
+			try:
+				num = self.count(chat)
+			except ValueError:
+				pass
+			else:
+				max_new = self.info['max_total_tokens'] - num
+				max_new = max(1, max_new)
 
 		return self.client.chat.completions.create(
 			model=self._call_model,
