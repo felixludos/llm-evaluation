@@ -2,7 +2,7 @@ from .imports import *
 
 from .descriptions import Describable
 from .endpoints import ChatEndpoint
-from .basics import Template
+from .basics import Template, FileTemplate
 
 
 
@@ -16,7 +16,7 @@ class QuickResponse(fig.Configurable, Selection, Describable):
 		if show_prompt:
 			gate['prompt'] = show_prompt if isinstance(show_prompt, str) else 'prompt'
 		if isinstance(prompt, str):
-			prompt = Template(prompt, name='prompt')
+			prompt = FileTemplate(prompt, name='prompt') if Path(prompt).exists() else Template(prompt, name='prompt')
 		if isinstance(endpoint, str):
 			endpoint = ChatEndpoint(url=endpoint)
 		super().__init__(gate=gate, **kwargs)
