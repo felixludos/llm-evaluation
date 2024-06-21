@@ -28,13 +28,17 @@ class QuickResponse(fig.Configurable, Selection, Describable):
 
 	def describe(self):
 		return {
-			'prompt': self.prompt.describe(),
-			'endpoint': self.endpoint.describe(),
+			'prompt': self.prompt,
+			'endpoint': self.endpoint,
 		}
 
 
 
-def test_quick():
+
+
+
+
+def test_quick(): # TODO: assumes there's a (mock) TGI server at port 4010
 
 	q = QuickResponse('Test prompt', 'http://127.0.0.1:4010')
 
@@ -46,7 +50,7 @@ def test_quick():
 	print(ctx)
 
 
-def test_double_quick():
+def test_double_quick(): # TODO: assumes there's a (mock) TGI server at port 4010
 
 	q1 = QuickResponse('Test prompt', 'http://127.0.0.1:4010', name='r1')
 
