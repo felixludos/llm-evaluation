@@ -10,3 +10,4 @@ from . import cluster
 from . import compute
 from . import basics
 from . import benchmarks
+from . import shortcuts

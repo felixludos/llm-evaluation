@@ -105,8 +105,8 @@ class ServerSeeker:
 
 
 class Endpoint(fig.Configurable, Describable, ToolKit):
-	def __init__(self, url: str = None, access_info: bool = True, gap=None, **kwargs):
-		super().__init__(gap=gap, **kwargs)
+	def __init__(self, url: str = None, access_info: bool = True, **kwargs):
+		super().__init__(**kwargs)
 		self._access_info = access_info
 		self.url = url
 
@@ -142,10 +142,11 @@ class Endpoint(fig.Configurable, Describable, ToolKit):
 
 @fig.modifier('toked')
 class TokedEndpoint(Endpoint):
-	def __init__(self, *, use_local: bool = True, tokenizer: str = None, **kwargs):
+	def __init__(self, *, use_local: bool = True, use_remote: bool = False, tokenizer: str = None, **kwargs):
 		super().__init__(**kwargs)
 		self.tokenizer = None
 		self.use_local = use_local
+		self.use_remote = use_remote
 		self.tokenizer_name = tokenizer
 
 
@@ -161,7 +162,9 @@ class TokedEndpoint(Endpoint):
 					self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name or self.info['model_id'])
 				except OSError as e:
 					# print error with traceback
-					print(e)
+					# print(e)
+					remote = ' (will use the server-side tokenizer)' if self.use_remote else ''
+					print(f'Failed to load the tokenizer on the client-side{remote}')
 
 
 	@tool('chat_prompt')
@@ -176,12 +179,12 @@ class TokedEndpoint(Endpoint):
 	def count(self, message: str | list[dict[str, str]]) -> int | None:
 		if not isinstance(message, str):
 			message = self.apply_chat_template(message)
-		if self.tokenizer is None:
+		if self.tokenizer is not None:
+			return len(self.tokenizer.encode(message)) - int(not isinstance(message, str)) # chat template repeats bos
+		if self.use_remote:
 			data = requests.post(f'{self.url}/tokenize', json={'inputs': message}).json()
-			# [{"id": 578,"text": " and","start": 18,"stop": 22},]
+			# example data: [{"id": 578,"text": " and","start": 18,"stop": 22},]
 			return len(data)
-		return len(self.tokenizer.encode(message)) - int(not isinstance(message, str)) # chat template repeats bos
-
 
 
 @fig.component('gen-endpoint')

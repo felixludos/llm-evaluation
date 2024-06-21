@@ -1,0 +1,43 @@
+
+# meant for the 'do' script
+
+keys: [prompt, response, answer, pred, is_correct]
+
+color: yes
+
+qidx: 30
+
+world:
+  const:
+    _type: const
+    data.idx: <>qidx
+
+  source:
+    _type: gsm8k
+    path: benchmarks/dev.jsonl
+    gap.question: prompt
+
+#  tmpl:
+#    _type: template
+#    name: prompt
+#    template: '{question} Take a deep breath and think step-by-step.'
+
+  model:
+    _type: chat-endpoint
+    max-tokens: 500
+
+  extractor:
+    _type: quick-response
+    name: pred
+    endpoint: <>url
+    prompt: |-
+      The student answered: "{response}" Identify the student's the final answer and respond only with the number and nothing else.
+
+  judge:
+    _type: quick-response
+    name: is_correct
+    endpoint: <>url
+    prompt: |-
+      The correct answer is: "{answer}" The student answered: "{pred}" Did the student answer correctly? (answer with only "yes" or "no")
+
+
