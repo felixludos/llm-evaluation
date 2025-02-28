@@ -5,7 +5,7 @@ import json, csv
 from omnibelt import load_json, save_json, load_csv, load_yaml, save_yaml, load_csv_rows, pformat
 
 from omniply import Context, ToolKit
-from omniply.core.gadgets import SingleGadgetBase, GadgetFailure
+from omniply.core.gadgets import SingleGadgetBase, GadgetFailed
 from omniply.apps import Template, DictGadget, Table, GodBase
 
 

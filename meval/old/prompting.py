@@ -4,7 +4,7 @@ from omnibelt import pathfinder
 from omniply import AbstractGig
 
 from omniply import Context
-from omniply.core.gadgets import SingleGadgetBase, GadgetFailure
+from omniply.core.gadgets import SingleGadgetBase, GadgetFailed
 from omniply.apps import Template, DictGadget
 
 from .benchmarks.base import PromptFile
@@ -23,7 +23,7 @@ class DefaultPrompter(fig.Configurable, SingleGadgetBase):
 		for key in self._input_keys:
 			try:
 				return ctx[key]
-			except GadgetFailure:
+			except GadgetFailed:
 				pass
 		raise ValueError(f"Item must contain at least one of: {self._input_keys}")
 
