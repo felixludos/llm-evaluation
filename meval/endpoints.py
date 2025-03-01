@@ -4,11 +4,12 @@ from .abstract import AbstractEndpoint
 import tiktoken, time
 
 
-class Endpoint(AbstractEndpoint):
+class Endpoint(fig.Configurable, AbstractEndpoint):
     """
     Endpoints define how requests are sent
 
-    They should generally use info that is *required* for requests to be sent, but they should *not* handle hyperparameters or details of a send request (as those should be handled upstream).
+    They should generally use info that is *required* for requests to be sent, but they should *not* handle
+    hyperparameters or details of a send request (as those should be handled upstream).
     """
     _endpoint_name = None
     _registered_endpoints = {}
@@ -78,30 +79,70 @@ class Endpoint(AbstractEndpoint):
             prompt = self.wrap_chat(prompt)
         full = self.send(prompt)
         return self.extract_response(full)
-    
 
 
+    def _record_send(self, data: JSONOBJ) -> JSONOBJ:
+        pass
+
+    def _record_send_no_wait(self, data: JSONOBJ) -> JSONOBJ:
+        return self._record_send(data)
+
+    def _record_response(self, data: JSONOBJ, resp: JSONOBJ) -> JSONOBJ:
+        pass
+
+    def _record_step(self, data: JSONOBJ, step: JSONOBJ) -> JSONOBJ:
+        pass
+
+
+    def send(self, data: JSONOBJ) -> JSONOBJ:
+        self._record_send(data)
+        resp = self._send(data)
+        self._record_response(data, resp)
+        return resp
+
+
+    def _send(self, data: JSONOBJ) -> JSONOBJ:
+        raise NotImplementedError
+
+
+    def send_no_wait(self, data: JSONOBJ) -> Iterator[JSONOBJ]:
+        self._record_send_no_wait(data)
+        for resp in self._send_no_wait(data):
+            self._record_step(data, resp)
+            yield resp
+
+
+    def _send_no_wait(self, data: JSONOBJ) -> Iterator[JSONOBJ]:
+        raise NotImplementedError
+
+
+@fig.component('mock')
 class MockEndpoint(Endpoint, name='mock'):
     def __init__(self, ident: str, **kwargs):
         super().__init__(ident=ident, **kwargs)
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
 
+
     def count_tokens(self, message: str) -> int:
         return len(self.tokenizer.encode(message))
 
+
     def wrap_chat(self, chat: List[Dict[str, str]]) -> JSONOBJ:
         return {'chat': chat}
-    
+
+
     def extract_response(self, data):
         return data['response']
 
-    def send(self, data: JSONOBJ) -> JSONOBJ:
+
+    def _send(self, data: JSONOBJ) -> JSONOBJ:
         assert 'chat' in data
         chat = data['chat']
         return {'response': f'This is the mock response to a chat with {len(chat)} messages.'}
 
-    def send_no_wait(self, data):
-        resp = self.send(data)
+
+    def _send_no_wait(self, data):
+        resp = self._send(data)
         for token in resp['response'].split():
             time.sleep(0.03)
             yield {'response': token}
