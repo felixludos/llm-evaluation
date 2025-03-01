@@ -24,7 +24,9 @@ class Endpoint(AbstractEndpoint):
 
 
     @classmethod
-    def connect(cls, ident: str) -> 'Endpoint':
+    def connect(cls, ident: Union[str, 'Endpoint']) -> 'Endpoint':
+        if isinstance(ident, Endpoint):
+            return ident
         name = ident.split('-')[0]
         if name not in cls._registered_endpoints:
             raise ValueError(f'Endpoint "{name}" is not registered.')
@@ -50,6 +52,14 @@ class Endpoint(AbstractEndpoint):
     def __init__(self, ident: str, **kwargs):
         super().__init__(**kwargs)
         self._ident = ident
+
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} {self.ident}>'
+
+
+    def __str__(self):
+        return self.ident
 
 
     @property
