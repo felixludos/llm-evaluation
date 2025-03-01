@@ -1,593 +1,257 @@
-import torch.cuda
+import socket
 
 from .imports import *
-from .errors import JobIncompleteError, DependencyError
-from . import util
 
-from threading import Thread
+import os
+from functools import cached_property
 
-
-
-class AbstractTask:
-	@property
-	def name(self):
-		raise NotImplementedError
-
-	def meta(self):
-		raise NotImplementedError
-
-	@property
-	def is_done(self):
-		raise NotImplementedError
-	@property
-	def is_running(self):
-		raise NotImplementedError
-	@property
-	def is_prepared(self):
-		raise NotImplementedError
-
-	def reset(self):
-		raise NotImplementedError
-
-	def terminate(self):
-		raise NotImplementedError
-
-	def start(self):
-		raise NotImplementedError
-
-	def complete(self, respond: bool = True):
-		raise NotImplementedError
-
-	def response(self):
-		raise NotImplementedError
-
-	def status(self):
-		raise NotImplementedError
-
-	def run(self):
-		raise NotImplementedError
-
-	def prepare(self):
-		raise NotImplementedError
-
-	def dispose(self):
-		raise NotImplementedError
+from .abstract import AbstractTask, AbstractManager, AbstractEnvironment
+from .util import get_task_root
 
 
-
-class ConfigTask(AbstractTask):
-	def __init__(self, name: str = None, **kwargs):
+@fig.component('env')
+class Environment(AbstractEnvironment, fig.Configurable):
+	'''this should be used to run a single task.'''
+	def __init__(self, ident: str = None, include_config: bool = False, **kwargs):
 		super().__init__(**kwargs)
-		self._meta_info = {}
-		self.name = name
-
-	def update_meta_info(self, **info):
-		self._meta_info.update(info)
-	def meta(self):
-		return self._meta_info
-
-	@property
-	def name(self):
-		return self._meta_info.get('name')
-	@name.setter
-	def name(self, value: str):
-		self._meta_info['name'] = value
-
-
-	_default_name = '{config.pull("configname","task",silent=True)}-{str(ID).zfill(3)}'
-	def generate_name(self, config: fig.Configuration, ID: int, timestamp: datetime):
-		template = self._default_name if self.name is None else self.name
-		name = pformat(template, ID=ID, timestamp=timestamp, config=config)
-		self.name = name
-		return name
-
-
-
-class ThreadTask(AbstractTask):
-	_task = None
-
-
-	def reset(self):
-		self._is_done = False
+		self._ident = ident
+		self._manager = None
 		self._task = None
+		self._config = None
+		self._include_config = include_config
+		self._workspace = None
 
 
-
-class Task(AbstractTask):
-	def __init__(self, name: str = None, **kwargs):
-		super().__init__(**kwargs)
-		self._task = None
-
-	_is_done = False
-	_is_prepared = False
-	_is_disposed = False
-
-	@property
-	def is_done(self):
-		return self._is_done
-	@property
-	def is_running(self):
-		return self._task is not None and self._task.is_alive()
-	@property
-	def is_prepared(self):
-		return self._is_prepared
-	@property
-	def is_disposed(self):
-		return self._is_disposed
+	def prepare(self, manager: AbstractManager, task: AbstractTask = None) -> Self:
+		assert self._task is None, 'Environment is already prepared'
+		self._manager = manager
+		self._task = task
+		self._prepare(manager, task)
+		return super().prepare(manager, task)
 
 
-	def reset(self):
-		self._is_done = False
-		self._task = None
-
-
-	def terminate(self):
-		raise NotImplementedError # TODO: implement kill thread (?)
-
-
-	def start(self): # non-blocking
-		if self.is_running:
-			raise RuntimeError('Job already started')
-		self._task = Thread(target=self.run)
-		self._task.start()
-
-
-	def complete(self, respond: bool = True): # blocking
-		if self.is_running:
-			self._task.join()
-		elif not self.is_done:
-			self.run()
-		if respond:
-			return self.response()
-
-
-	def response(self):
-		if not self.is_done:
-			raise JobIncompleteError('Job not complete')
-		return self._get_response()
-
-
-	@property
-	def is_done(self):
-		return self._is_done
-	@property
-	def is_running(self):
-		return self._task is not None and self._task.is_alive()
-	@property
-	def is_prepared(self):
-		return self._is_prepared
-	@property
-	def is_disposed(self):
-		return self._is_disposed
-
-
-	def status(self):
-		return {'is_done': self.is_done, 'is_running': self.is_running,
-				'is_prepared': self.is_prepared, 'is_disposed': self.is_disposed}
-
-
-	def run(self):
-		self.prepare()
-		self._run()
-		self.dispose()
-		self._is_done = True
-
-
-	def prepare(self):
-		'''should be agnostic to multiple calls'''
-		self._prepare()
-		self._is_prepared = True
-		return self
-
-
-	def dispose(self):
-		'''should be agnostic to multiple calls'''
-		self._dispose()
-		self._task = None
-		self._is_disposed = True
-		return self
-
-
-	def _prepare(self):
+	def _prepare(self, manager: AbstractManager, task: AbstractTask):
 		pass
 
 
-	def _dispose(self):
-		pass
+	def wrap_command(self, cmd: str) -> str:
+		return cmd
 
-
-	def _get_response(self):
-		pass
-
-
-	def _run(self):
-		raise NotImplementedError
-
-
-
-class SinglePreparation(Task):
-	def prepare(self):
-		'''changes prepare to only run once, and from then on be a null-op'''
-		if not self.is_prepared:
-			super().prepare()
-		return self
-
-
-
-class ManagedTask(Task):
-	_manager = None
 
 	@property
-	def manager(self):
-		if self._manager is None:
-			raise RuntimeError('Manager not set')
-		return self._manager
+	def ident(self) -> str:
+		'''unique identifier for the task (environment)'''
+		if self._ident is None:
+			self._ident = self._manager.generate_ident(self)
+		return self._ident
+
+
+	@property
+	def workspace(self) -> Path:
+		if self._workspace is None:
+			assert self._manager is not None, 'Manager must be set before workspace is accessed'
+			self._workspace = self._manager.create_workspace(self)
+		return self._workspace
+
+
+	def record_config(self, config: JSONABLE):
+		if self._include_config:
+			self._config = config
+
+
+	def world_history(self, *args, **kwargs) -> Iterator[JSONOBJ]:
+		yield from self._manager.world_history(*args, **kwargs)
+
+
+	def _report(self, event: str, info: JSONOBJ, **details: JSONABLE):
+		assert self._manager is not None, 'Manager must be set before reporting'
+		self._manager.report(self, event, info, **details)
+
+
+	def report(self, event: str, info: JSONOBJ = None):
+		return self._report(event, info)
+
+
+	def report_launch(self, info: JSONOBJ, **details: JSONABLE):
+		if self._workspace is not None and 'TASK_LOG' not in os.environ:
+			details['path'] = str(self._workspace)
+		if self._include_config:
+			details['config'] = self._config
+		return self._report('launch', info, category=self._task.category, host=socket.gethostname(), **details)
+
+
+	def report_error(self, info: JSONOBJ, **details: JSONABLE):
+		return self._report('error', info, **details)
+
+
+	def report_exit(self, info: JSONOBJ, **details: JSONABLE):
+		return self._report('exit', info, **details)
 
 
 
-class Timestamped(Task):
-	def __init__(self, **kwargs):
+@fig.component('default-manager')
+class Manager(AbstractManager, fig.Configurable):
+	_Environment = Environment
+	_current_env = None
+
+	def __init__(self, env: AbstractEnvironment = None,
+				 task_root: Union[str, Path] = os.environ.get('TASK_ROOT', get_task_root()),
+				 # task_log: Union[str, Path] = os.environ.get('TASK_LOG', '~/log.jsonl'),
+				 # working_root: Union[str, Path] = os.environ.get('TASK_WORK_ROOT', '~/tasks/'),
+				 **kwargs):
+		if env is None:
+			env = self._Environment()
 		super().__init__(**kwargs)
-		self.start_time = None
-		self.finish_time = None
+		self.env = env
+		self._config = None
+		self.task_root = Path(task_root).expanduser().resolve()
 
 
-	def reset(self):
-		super().reset()
-		self.start_time = None
-		self.finish_time = None
+	@property
+	def task_log(self) -> Path:
+		return self.task_root / 'log.jsonl'
 
 
-	def run(self):
-		self.start_time = datetime.now()
-		super().run()
-		self.finish_time = datetime.now()
+	@classmethod
+	def set_current_environment(cls, env: AbstractEnvironment):
+		cls._current_env = env
 
 
-	def status(self):
-		progress = super().status()
-		progress['current_time'] = datetime.now()
-		if self.start_time is not None:
-			progress['start_time'] = self.start_time
-			# progress['started'] = progress['current_time'] - self.start_time
-			# progress['started_human'] = humanize.naturaldelta(progress['started'])
-		if self.finish_time is not None:
-			progress['finish_time'] = self.finish_time
-			# progress['finished'] = progress['current_time'] - self.finish_time
-			# progress['finished_human'] = humanize.naturaldelta(progress['finished'])
-		if self.start_time is not None and self.finish_time is not None:
-			progress['duration'] = self.finish_time - self.start_time
-			# progress['duration_human'] = humanize.naturaldelta(progress['duration'])
-		return progress
+	@classmethod
+	def get_current_environment(cls) -> AbstractEnvironment:
+		return cls._current_env
 
 
-
-class ResourceAware(Timestamped):
-	def __init__(self, **kwargs):
-		super().__init__(**kwargs)
-		self.start_snapshot = None
-		self.end_snapshot = None
+	def world_history(self) -> Iterator[JSONOBJ]:
+		with self.task_log.open('r') as f:
+			for line in f:
+				yield json.loads(line)
 
 
-	def reset(self):
-		super().reset()
-		self.start_snapshot = None
-		self.end_snapshot = None
+	def prepare(self, task: AbstractTask) -> AbstractEnvironment:
+		self.task_root.mkdir(exist_ok=True)
+		self.task_log.touch()
+		env = self._Environment() if self.env is None else self.env
+		self.set_current_environment(env)
+		env.record_config(self._config)
+		return env.prepare(self, task)
 
 
-	def status(self, fast: bool = True):
-		progress = super().status()
-
-		current = util.resource_snapshot(cpu_interval=None if fast else 1)
-
-		if 'total_cpu_usage' in current.get('cpu', {}):
-			progress['cpu_util'] = current['cpu']['total_cpu_usage']
-			if self.start_snapshot is not None and 'total_cpu_usage' in self.start_snapshot.get('cpu', {}):
-				progress['cpu_util_delta'] = (current['cpu']['total_cpu_usage']
-											  - self.start_snapshot['cpu']['total_cpu_usage'])
-
-		if 'available_GB' in current.get('ram', {}) and 'proc_used_GB' in current.get('ram', {}):
-			progress['ram_available'] = current['ram']['available_GB']
-			progress['ram_used'] = current['ram']['proc_used_GB']
-			if (self.start_snapshot is not None and 'available_GB' in self.start_snapshot.get('ram', {})
-					and 'proc_used_GB' in self.start_snapshot.get('ram', {})):
-				progress['ram_used_since_start'] = (current['ram']['proc_used_GB']
-													- self.start_snapshot['ram']['proc_used_GB'])
-
-		if current.get('gpu') is not None:
-			progress['gpu_available'] = sum(g['smi_free_GB'] for g in current['gpu'])
-			progress['gpu_used'] = sum(g['memory_cached_GB'] for g in current['gpu'])
-			progress['gpu_util'] = sum(g['utilization'] for g in current['gpu']) / len(current['gpu'])
-			if self.start_snapshot is not None and self.start_snapshot.get('gpu') is not None:
-				progress['gpu_used_since_start'] = (sum(g['memory_cached_GB'] for g in current['gpu'])
-													- sum(g['memory_cached_GB'] for g in self.start_snapshot['gpu']))
-
-		return progress
+	def create_workspace(self, env: AbstractEnvironment) -> Path:
+		workspace = self.task_root / env.ident
+		if workspace.exists():
+			raise ValueError(f'{env.ident} is not a unique task identifier')
+		workspace.mkdir()
+		return workspace
 
 
-	def start(self):
-		self.end_snapshot = None
-		super().start()
+	def record_config(self, config: fig.Configuration):
+		self._config = config.to_python()
 
 
-	def run(self):
-		if self.start_snapshot is None:
-			self.start_snapshot = util.resource_snapshot()
-		super().run()
-		self.end_snapshot = util.resource_snapshot()
+	def report(self, env: AbstractEnvironment, event: str, info: JSONOBJ = None, **details: JSONABLE):
+		payload = {'time': datetime.now().isoformat(), 'event': event, 'id': env.ident, **details}
+		if info is not None:
+			payload['info'] = info
+		with self.task_log.open('a') as f:
+			f.write(json.dumps(payload) + '\n')
 
 
+	def generate_ident(self, env: AbstractEnvironment) -> str:
+		existing = list(self.task_root.glob('*'))
+		n = len(existing)
 
-class IterativeTask(Task):
-	def __init__(self, **kwargs):
-		super().__init__(**kwargs)
-		self._stream = None
-		self._kill_flag = False
-		self._run_iterations = None
-		self.num_iterations = 0
-		self._batch_num_iterations = 0
-
-
-	def reset(self):
-		self.terminate()
-		self._stream = None
-		self._run_iterations = None
-		self.num_iterations = 0
-		self._batch_num_iterations = 0
-		super().reset()
-
-
-	def terminate(self):
-		self._kill_flag = True
-
-
-	def prepare(self):
-		super().prepare()
-		if self._stream is None:
-			self._stream = self._generate_stream()
-
-
-	def start(self, n: Optional[int] = None): # non-blocking
-		self._kill_flag = False
-		self._run_iterations = n
-		super().start()
-
-
-	def _run(self):
-		self._batch_num_iterations = 0
-		while (self._stream is not None and not self._kill_flag
-			   and (self._run_iterations is None or self._batch_num_iterations < self._run_iterations)):
-			self._take_steps(1)
-			self._batch_num_iterations += 1
-
-
-	def step(self, n: Optional[int] = 1): # user-level blocking
-		'''takes at most n steps'''
-		self.prepare()
-		return self._take_steps(n)
-
-
-	def _take_steps(self, n: Optional[int] = None): # blocking
-		while n is None or n > 0:
-			try:
-				next(self._stream)
-			except StopIteration:
-				self._stream = None
-				self._is_done = True
-				break
+		while True:
+			candidate = f'{str(n).zfill(3)}'
+			if (self.task_root / candidate).exists():
+				n += 1
 			else:
-				self.num_iterations += 1
-				n -= 1
-
-
-	def complete(self, respond: bool = True, finish: bool = False): # blocking
-		super().complete(respond=False)
-		if finish and not self.is_done:
-			self.step(None)
-		if respond:
-			return self._get_response()
-
-
-	@property
-	def is_done(self):
-		return self._is_done and self._stream is None
-
-
-	def dispose(self):
-		super().dispose()
-		self._run_iterations = None
-
-
-	def status(self):
-		progress = super().status()
-		progress['num_iterations'] = self.num_iterations
-		return progress
-
-
-	def _generate_stream(self): # generator
-		raise NotImplementedError
+				return candidate
 
 
 
-class TimedIterative(Timestamped, IterativeTask):
-	def status(self):
-		progress = super().status()
-		if self.is_running and 'start_time' in progress and 'current_time' in progress:
-			progress['itr_per_sec'] = (self._batch_num_iterations
-									   / (progress['current_time'] - progress['start_time']).total_seconds())
-		return progress
+def default_environment(*, manager=None):
+	env = Environment()
+	if manager is None:
+		manager = Manager()
+	return env.prepare(manager)
 
 
 
-class ExpectedTiming(Timestamped):
-	def __init__(self, **kwargs):
-		super().__init__(**kwargs)
-		self.expected_duration = None
-
-	def status(self):
-		progress = super().status()
-		if self.expected_duration is not None:
-			progress['expected_duration'] = self.expected_duration
-			if self.start_time is not None:
-				progress['expected_finish_time'] = self.start_time + self.expected_duration
-			if 'duration' in progress:
-				pass
-				# progress['expected_duration_delta'] = progress['duration'] - self.expected_duration
-				# progress['expected_relative_duration'] = (progress['duration'].total_seconds()
-				# 										  / self.expected_duration.total_seconds())
-				# # progress['expected_duration'] = self.expected_duration
-				# progress['expected_duration_human'] = humanize.naturaldelta(self.expected_duration)
-				# diff = progress['expected_duration_delta'].total_seconds()
-				# progress['expected_duration_delta_human'] = (humanize.naturaldelta(timedelta(seconds=abs(diff)))
-				# 									   + (' longer' if diff > 0 else ' shorter'))
-			elif 'current_time' in progress and 'start_time' in progress:
-				progress['expected_progress'] = ((progress['current_time'] - progress['start_time']).total_seconds()
-												 / progress['expected_duration'].total_seconds())
-				remaining = self.expected_duration - (progress['current_time'] - progress['start_time'])
-				if remaining.total_seconds() > 0:
-					progress['expected_remaining'] = remaining
-					# progress['expected_remaining_human'] = humanize.naturaldelta(progress['expected_remaining'])
-		return progress
+def get_environment(force=True) -> AbstractEnvironment:
+	env = Manager.get_current_environment()
+	if env is None and force:
+		env = default_environment()
+	return env
 
 
 
-class ExpectedResources(ResourceAware, ExpectedTiming):
-	def __init__(self, **kwargs):
-		super().__init__(**kwargs)
-		self.expected_ram_usage = 0
-		self.expected_gpu_usage = 0
+@fig.script('start')
+def start_task(cfg: fig.Configuration, *, manager: AbstractManager = None, task: AbstractTask = None,
+			   manager_key='manager', task_key='task'):
 
+	if manager is None:
+		cfg.push(f'{manager_key}._type', 'default-manager', overwrite=False, silent=True)
+		manager: AbstractManager = cfg.pull(manager_key)
 
-	def status(self, fast: bool = False):
-		progress = super().status(fast=fast)
+	if task is None:
+		task: AbstractTask = cfg.pull(task_key)
 
-		if self.expected_ram_usage > 0 and 'ram_used' in progress:
-			progress['expected_ram_usage'] = self.expected_ram_usage
-			progress['expected_ram_remaining'] = self.expected_ram_usage - progress['ram_used']
-			progress['expected_ram_progress'] = progress['ram_used'] / self.expected_ram_usage
+	manager.record_config(cfg)
+	with manager.prepare(task) as env:
+		task.prepare(env)
 
-		if self.expected_gpu_usage > 0 and 'gpu_used' in progress:
-			progress['expected_gpu_usage'] = self.expected_gpu_usage
-			progress['expected_gpu_remaining'] = self.expected_gpu_usage - progress['gpu_used']
-			progress['expected_gpu_progress'] = progress['gpu_used'] / self.expected_gpu_usage
+		launch_info = task.launch(env.report)
+		if not task.quiet:
+			env.report_launch(launch_info)
 
-		return progress
+		while True:
+			try:
+				exit_info = task.complete(env.report)
+			except (KeyboardInterrupt, Exception) as error:
+				error_info = task.handle(error, env.report)
+				if error_info is not None:
+					if not task.quiet:
+						env.report_error(error_info)
+					raise
+			else:
+				# assert exit_info is not None, f'Monitor must return some exit info: {task}'
+				if not task.quiet:
+					env.report_exit(exit_info)
+				break
 
-
-
-class ExpectedIterations(TimedIterative):
-	def __init__(self, **kwargs):
-		super().__init__(**kwargs)
-		self.expected_num_iterations = None
-
-
-	def status(self):
-		progress = super().status()
-		if self.expected_num_iterations is not None:
-			progress['expected_num_iterations'] = self.expected_num_iterations
-			progress['expected_num_remaining'] = self.expected_num_iterations - self.num_iterations
-			progress['expected_num_progress'] = self.num_iterations / self.expected_num_iterations
-
-			if 'rate' in progress:
-				current = progress['current_time'] if 'current_time' in progress else datetime.now()
-				progress['expected_finish_time_from_rate'] = (current
-										+ timedelta(seconds=progress['expected_num_remaining'] / progress['rate']))
-				progress['expected_remaining_time_from_rate'] = progress['expected_finish_time_from_rate'] - current
-
-		return progress
+	code = exit_info.get('code', exit_info)
+	return code
 
 
 
-class Chainable(Task):
-	def chain(self, task: Task):
-		raise NotImplementedError
+# @fig.script('sandbox')
+# def _sandbox(cfg: fig.Configuration):
+# 	import subprocess, sys, os
+# 	from omnibelt import colorize
+#
+# 	# cmd = 'source ~/.bashrc && conda activate llm && conda info'
+# 	cmd = '''
+# 	source $CONDA_PREFIX/etc/profile.d/conda.sh
+# 	conda activate llm
+# 	conda info
+# 	'''
+# 	# cmd = 'conda run -n llm text-generation-launcher'
+# 	# cmd = ('echo $CONDA_PREFIX;'
+# 	# 	   'conda activate llm;'
+# 	# 	   'echo $CONDA_PREFIX;')
+# 	cmd = 'source $CONDA_PREFIX/etc/profile.d/conda.sh; conda activate llm; text-generation-launcher'
+#
+# 	proc = subprocess.Popen(cmd, shell=True, text=True, executable="/bin/bash", env=os.environ.copy())
+#
+# 	print(colorize('started', 'green'))
+# 	print()
+#
+# 	out = proc.wait()
+#
+# 	print(colorize(f'finished: {out}', 'green'))
 
 
 
-class Subtask(Chainable):
-	def __init__(self, *, strict: bool = True, wait: bool = True, **kwargs):
-		super().__init__(**kwargs)
-		self._dependency = []
-		self._strict = strict
-		self._wait = wait
-
-
-	def add_dependency(self, task: Task):
-		self._dependency.append(task)
-		return self
-
-
-	def status(self):
-		progress = super().status()
-		if len(self._dependency):
-			progress['waiting_for'] = [t.meta() for t in self._dependency if not t.is_done]
-		return progress
-
-
-	def run(self):
-		for dep in self._dependency:
-			if self._strict and not dep.is_done:
-				if self._wait:
-					dep.complete()
-				else:
-					raise DependencyError(f'Dependency not complete: {dep}')
-			self.chain(dep)
-
-		super().run()
-
-
-
-class PersistentTask(Task):
-	_root = None
-	def persist(self, root: Path):
-		self._root = root
-
-
-
-class ReloadableTask(PersistentTask):
-	def reload(self, root: Path):
-		pass
-
-
-
-@fig.modifier('autochain')
-class AutoChained(Task):
-	def __init__(self, then: Chainable = None, **kwargs):
-		super().__init__(**kwargs)
-		self.then = then
-
-
-	def run(self):
-		super().run()
-		if self.then is not None:
-			self.then.chain(self)
-			self.then.complete()
-
-
-
-@fig.component('multitask')
-class MultiTask(Task):
-	def __init__(self, tasks: list[Task] = None, parallel: bool = False, **kwargs):
-		if tasks is None:
-			tasks = []
-		super().__init__(**kwargs)
-		self.tasks = tasks
-		self._parallel = parallel
-
-
-	def status(self):
-		progress = super().status()
-		progress['completed'] = sum(t.is_done for t in self.tasks)
-		progress['running'] = sum(t.is_running for t in self.tasks)
-		progress['subtasks'] = [t.status() for t in self.tasks]
-		return progress
-
-
-	def _run(self):
-		if self._parallel:
-			for task in self.tasks:
-				task.start()
-		for task in self.tasks:
-			task.complete()
 
 

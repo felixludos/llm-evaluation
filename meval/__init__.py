@@ -4,10 +4,12 @@
 # from . import manager
 # from . import models
 # from . import util
-from . import chat
-from . import server
-from . import cluster
-from . import compute
-from . import basics
-from . import benchmarks
-from . import shortcuts
+# from . import chat
+# from . import server
+# from . import cluster
+# from . import compute
+# from . import basics
+# from . import benchmarks
+# from . import shortcuts
+
+from . import unit_test
