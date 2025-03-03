@@ -3,6 +3,8 @@ tabulate
 pandas
 matplotlib
 fastapi
+gradio
+uvicorn
 psutil
 pynvml
 omnibelt
@@ -11,6 +13,4 @@ omniply
 watchdog
 psutil
 openai
-tiktoken
 huggingface-hub
-wandb

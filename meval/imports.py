@@ -8,11 +8,12 @@ from omniply.apps.gaps import tool, Context, ToolKit, DictGadget, Table as Table
 from omniply.core.abstract import AbstractMutable
 # from omniply.apps.staging import AbstractStaged, Staged, StagedGaggle, AbstractPlan
 from omniply import GadgetFailed
-from omniply.apps.guides import Guru, MutableGuru, AbstractMogul, AbstractGuru
+# from omniply.apps.guides import Guru, MutableGuru, AbstractMogul, AbstractGuru
+# from omniply.apps.training import Frame
 from datetime import datetime, timedelta
 from functools import cached_property, lru_cache
 import requests, socket
-import json
+import json, csv, re, random
 
 
 

@@ -1,6 +1,5 @@
 from .imports import *
 from .abstract import AbstractEndpoint
-
 import tiktoken, time
 
 
@@ -18,16 +17,15 @@ class Endpoint(fig.Configurable, AbstractEndpoint):
             if '-' in name:
                 raise ValueError(f'Invalid name: "{name}". Name cannot contain "-".')
             if name in cls._registered_endpoints:
-                print(f'Warning: Endpoint "{name}" is already registered. Replacing: {cls._registered[name].__name__} with {cls.__name__}')
+                print(f'Warning: Endpoint "{name}" is already registered. Replacing: '
+                      f'{cls._registered_endpoints[name].__name__} with {cls.__name__}')
             cls._registered_endpoints[name] = cls
             cls._endpoint_name = name
         return super().__init_subclass__()
 
 
     @classmethod
-    def connect(cls, ident: Union[str, 'Endpoint']) -> 'Endpoint':
-        if isinstance(ident, Endpoint):
-            return ident
+    def find(cls, ident: str) -> 'Endpoint':
         name = ident.split('-')[0]
         if name not in cls._registered_endpoints:
             raise ValueError(f'Endpoint "{name}" is not registered.')
@@ -40,19 +38,14 @@ class Endpoint(fig.Configurable, AbstractEndpoint):
 
 
     _active = {}
-    def __new__(cls, ident: str, **kwargs):
-        if cls._endpoint_name is None:
-            return cls.connect(ident)
-        if ident in cls._active:
-            return cls._active[ident]
-        new = super().__new__(cls)
-        cls._active[ident] = new
-        return new
-
-
-    def __init__(self, ident: str, **kwargs):
+    def __init__(self, ident: str = None, **kwargs):
+        if ident is None: ident = self._endpoint_name
         super().__init__(**kwargs)
         self._ident = ident
+
+
+    def validate(self) -> 'Endpoint':
+        return self._active.setdefault(self._ident, self)
 
 
     def __repr__(self):
@@ -118,7 +111,7 @@ class Endpoint(fig.Configurable, AbstractEndpoint):
 
 @fig.component('mock')
 class MockEndpoint(Endpoint, name='mock'):
-    def __init__(self, ident: str, **kwargs):
+    def __init__(self, ident: str = None, **kwargs):
         super().__init__(ident=ident, **kwargs)
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
 
@@ -148,15 +141,38 @@ class MockEndpoint(Endpoint, name='mock'):
             yield {'response': token}
 
 
+import openai
 
 class ChatGPT(Endpoint, name='gpt'):
-    def __init__(self, ident: str, **kwargs):
+    # def __init__(self, ident: str = 'gpt-4o', temperature: float = 0.7, top_p: float = 1.0, #seed: int = 1000000007,
+    #              frequency_penalty: float = 0., presence_penalty: float = 0., **kwargs):
+    def __init__(self, ident: str = 'gpt-4o', **kwargs):
         super().__init__(ident=ident, **kwargs)
         self.tokenizer = tiktoken.encoding_for_model(ident)
 
 
     def count_tokens(self, message: str) -> int:
         return len(self.tokenizer.encode(message))
+
+
+    def wrap_chat(self, chat: List[Dict[str, str]], model: str = None) -> JSONOBJ:
+        if model is None:
+            model = self.ident
+        return {'messages': chat, 'model': model}
+
+
+    def _send(self, data: JSONOBJ) -> openai.ChatCompletion:
+        response = openai.ChatCompletion.create(**data)
+        return response
+
+
+    def _send_no_wait(self, data: JSONOBJ) -> Iterator[openai.ChatCompletion]:
+        response = openai.ChatCompletion.create(stream=True, **data)
+        yield response
+
+
+    def extract_response(self, data: openai.ChatCompletion) -> str:
+        return data.choices[0].message['content']
 
 
 
