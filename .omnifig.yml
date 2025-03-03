@@ -1,2 +1,2 @@
-module: meval
+module: wordplay
 related: [mpi_cluster]
