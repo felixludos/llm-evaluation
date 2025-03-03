@@ -2,6 +2,7 @@ from .imports import *
 from omniply.apps import Table
 from omniply.apps.training import Frame
 from .abstract import AbstractDataset, AbstractPlanner, AbstractSample, AbstractSystem
+from .errors import NoMoreSamplesError, NoNewSamplesError
 
 
 
@@ -21,55 +22,130 @@ class Planner(AbstractPlanner):
 		self._num_iterations = 0
 
 
-	def draw(self, size: int = 1) -> Dict[str, Any]:
-		assert size == 1, f'Collection planner only supports size=1, not {size}'
+	_NoMoreSamplesError = NoMoreSamplesError
+	def draw(self) -> Dict[str, Any]:
+		if self._offset >= self._src.size:
+			raise self._NoMoreSamplesError(f'{self._src}')
 		data = {self._index_key: self._offset if self._indices is None else self._indices[self._offset]}
 		self._offset += 1
 		return data
 
 
-	def step(self, size: int = 1) -> Dict[str, Any]:
-		assert size == 1, f'Collection planner only supports size=1, not {size}'
+	def step(self) -> Dict[str, Any]:
 		self._num_iterations += 1
 		return self.draw()
 
 
-	def generate(self, size: int = 1) -> Iterator[Dict[str, Any]]:
-		assert size == 1, f'Collection planner only supports size=1, not {size}'
+	def generate(self) -> Iterator[Dict[str, Any]]:
 		while self._offset < self._src.size:
 			yield self.step()
 
 
+	def expected_iterations(self) -> Optional[int]:
+		return self._src.size - self._num_iterations
 
-class Sample(Frame, AbstractSample):
+
+
+class SampleInfo(DictGadget):
 	pass
 
 
 
-class System(AbstractSystem):
+class Sample(Context, AbstractSample):
+	_SampleInfo = SampleInfo
+	def __init__(self, info: dict[str, Any], *, plan: AbstractPlanner, allow_draw: bool = True, **kwargs):
+		if isinstance(info, dict):
+			info = self._SampleInfo(info)
+		super().__init__(**kwargs)
+		self._info = info
+		self._plan = plan
+		self._allow_draw = allow_draw
+		self.include(info)
+
+
+	def gadgetry(self) -> Iterator[AbstractGadget]:
+		for gadget in self.vendors():
+			if gadget is not self._info:
+				yield gadget
+
+
+	@property
+	def plan(self) -> AbstractPlanner:
+		return self._plan
+
+
+	def _new(self, *, plan=None, allow_draw=None, **kwargs) -> 'Sample':
+		if plan is None:
+			plan = self._plan
+		if allow_draw is None:
+			allow_draw = self._allow_draw
+		new = self.__class__(plan.draw(), plan=plan, allow_draw=allow_draw, **kwargs)
+		new.extend(tuple(self.gadgetry()))
+		return new
+
+
+	def new(self, size: int = None) -> 'Sample':
+		if self._allow_draw: return self._new()
+		raise NoNewSamplesError(f'creating new samples using the current sample is currently not allowed')
+
+
+
+class SimpleSystem(ToolKit, AbstractSystem):
 	def __init__(self, source: AbstractDataset, *gadgets, **kwargs):
 		super().__init__(source, *gadgets, **kwargs)
 		self._source = source
+		self._gadgets = gadgets
 
 
-	def iterate(self, *gadgets: AbstractGadget,
+	def gadgetry(self) -> Iterator[AbstractGadget]:
+		yield from self._gadgets
+
+
+	@property
+	def source(self):
+		return self._source
+
+
+	@property
+	def size(self) -> Optional[int]:
+		return self.source.size
+
+
+	def iterate(self, *gadgets: AbstractGadget, plan: Optional[AbstractPlanner] = None,
 				shuffle: Optional[bool] = None, allow_draw: bool = True) -> Iterator[AbstractSample]:
-		yield from self._source.iterate(*gadgets, shuffle=shuffle, allow_draw=allow_draw)
+		yield from self.source.iterate(*gadgets, *self.gadgetry(), shuffle=shuffle, allow_draw=allow_draw)
 
 
 	def sample(self, *gadgets: AbstractGadget, shuffle: bool = True, **kwargs) -> AbstractSample:
-		return self._source.sample(*gadgets, shuffle=shuffle, **kwargs)
+		return self.source.sample(*gadgets, *self.gadgetry(), shuffle=shuffle, **kwargs)
+
+
+
+class System(SimpleSystem):
+	def __init__(self, source: AbstractDataset, env: Dict[str, AbstractGadget], **kwargs):
+		super().__init__(source, *env.values(), **kwargs)
+		self._env = env
+
+
+	def gadgetry(self) -> Iterator[AbstractGadget]:
+		yield from self._env.values()
+
+
+
+	def announce(self) -> str:
+		return tabulate([('dataset', self.source), *self._env.items()], tablefmt='fancy_grid')
 
 
 
 class Dataset(AbstractDataset):
 	_Planner = Planner
 	_Sample = Sample
-	def iterate(self, *gadgets: AbstractGadget,
+	def iterate(self, *gadgets: AbstractGadget, plan: Optional[AbstractPlanner] = None,
 				shuffle: Optional[bool] = None, allow_draw: bool = True) -> Iterator[Sample]:
-		planner = self._Planner(self, shuffle=shuffle)
-		for info in planner.generate():
-			sample = self._Sample(info, planner=planner, allow_draw=allow_draw)
+		if plan is None:
+			plan = self._Planner(self, shuffle=shuffle)
+		for info in plan.generate():
+			sample = self._Sample(info, plan=plan, allow_draw=allow_draw)
 			yield sample.include(*gadgets, self)
 
 
@@ -81,7 +157,7 @@ class Dataset(AbstractDataset):
 @fig.component('table')
 class TableDataset(fig.Configurable, Dataset, Table):
 	def __init__(self, data: dict[str, list[Any]] = None, **kwargs):
-		super().__init__(data=data, **kwargs)
+		super().__init__(data_in_columns=data, **kwargs)
 
 
 	@property
@@ -99,7 +175,7 @@ class FileDataset(TableDataset):
 
 	@property
 	def path(self) -> Path:
-		return self._path
+		return Path(self._path)
 
 
 	def _load_data(self) -> dict[str, list[Any]]:

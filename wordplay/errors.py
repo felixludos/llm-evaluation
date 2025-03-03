@@ -8,3 +8,13 @@ class InteractionFailed(GadgetFailed):
 		self.resp = resp
 
 
+
+class NoMoreSamplesError(IndexError):
+	pass
+
+
+class NoNewSamplesError(ValueError):
+	pass
+
+
+

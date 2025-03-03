@@ -16,3 +16,6 @@ from . import unit_test
 from . import datasets
 from . import endpoints
 from . import interactions
+from . import benchmarks
+from .op import run_benchmark
+from . import helpers

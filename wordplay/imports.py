@@ -13,7 +13,9 @@ from omniply import GadgetFailed
 from datetime import datetime, timedelta
 from functools import cached_property, lru_cache
 import requests, socket
-import json, csv, re, random
+from tabulate import tabulate
+from datetime import datetime
+import json, csv, re, random, time
 
 
 

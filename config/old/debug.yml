@@ -1,0 +1,111 @@
+
+#_meta.script_name: serve
+#_meta.script_name: sandbox
+#_meta.script_name: submit-llm
+#_meta.script_name: chat
+#_meta.script_name: compute
+_meta.script_name: do
+
+#_base: [m/llama70b]
+
+#_meta.help: yes
+
+#endpoint._mod: toked
+
+#_base: [local]
+
+#keys: all
+
+#head-name: meta
+
+#world:
+#  tmpl:
+#    _type: template
+#    template: 'constant value'
+#    name: const
+#
+#  tmpl2:
+#    _type: template
+#    template: 'add to {something}'
+#    name: const2
+#    gap.something: const
+
+#rec.out:
+#  const2: yes
+
+#calculations:
+#  printer:
+#    _type: printer
+#    keys: const2
+
+#keys: [prompt, response, answer]
+
+
+
+#  eval-template:
+#    _type: template
+#    template: 'The question is: {question}. The student responded with: {response}. The correct answer is: {answer}. Did the student answer correctly? (answer with only "yes" or "no")'
+#    name: eval_prompt
+#
+#  evaluator:
+#    _type: chat-endpoint
+#    gap:
+#      prompt: eval_prompt
+#      response: is_correct
+
+
+
+#task-log: /is/cluster/fleeb/log.jsonl
+#working-root: /is/cluster/fleeb/tasks
+#task-log: \\wsl.localhost\Ubuntu-20.04\home\fleeb\log.jsonl
+#working-root: \\wsl.localhost\Ubuntu-20.04\home\fleeb\tasks
+
+
+
+#model-id: google/gemma-2b-it
+
+
+#command: source $CONDA_PREFIX/etc/profile.d/conda.sh; conda activate llm; text-generation-launcher
+#command: text-generation-launcher --port {port}
+#command: /home/fleeb/.cargo/bin/text-generation-launcher
+#command: conda activate llm && /home/fleeb/.cargo/bin/text-generation-launcher
+#command: singularity run --nv --bind singe/data:/data singe/text-generation-inference.sif
+
+#port: 8080
+
+
+
+###################
+
+#_base: [quick-llm]
+#
+#_meta.script_name: start-server
+#
+##server._type: manager-server
+#
+#manager._type: task-manager
+#
+#config_root._type: default-config-root
+
+
+
+
+#root: test-job-root
+
+
+#4bit: yes
+#8bit: no
+#device: cuda
+#
+#model-id: microsoft/phi-2
+#
+#model_args:
+#  trust_remote_code: yes
+#  device_map: <>device
+#  load_in_4bit: <>4bit
+#  load_in_8bit: <>8bit
+#
+#tokenizer_args:
+#  trust_remote_code: yes
+#  device_map: <>device
+
