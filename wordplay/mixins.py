@@ -1,33 +1,13 @@
 from .imports import *
 from omnibelt import Class_Registry
+from .abstract import AbstractJsonable, AbstractDescribable
 
 _primitive = (str, int, float, bool, type(None))
 # PRIMITIVE = Union[None, *_primitive[:-1]]
 # JSONABLE = Union[PRIMITIVE, list['JSONABLE'], dict[str, 'JSONABLE']]
 # JSONOBJ = dict[str, JSONABLE]
 
-DESCRIBABLE = Union[JSONABLE, 'AbstractDescribable']
-DESCRIPTION = dict[str, DESCRIBABLE]
 # DEPOSIT = dict[str, JSONABLE]
-
-
-
-class AbstractJsonable:
-	def json(self) -> JSONOBJ:
-		raise NotImplementedError
-
-
-
-class AbstractDescribable(AbstractJsonable):
-	def describe(self) -> DESCRIPTION:
-		raise NotImplementedError
-
-
-	def display(self, level: str = 'single', **kwargs) -> str:
-		"""
-		multi-full | single-full | multi | single | min | None
-		"""
-		raise NotImplementedError
 
 
 
@@ -89,7 +69,7 @@ def display(obj, *, level: str = 'single', **kwargs) -> str:
 
 
 
-def to_json(obj: JSONABLE) -> JSONOBJ:
+def to_json(obj: Any) -> JSONABLE:
 	if isinstance(obj, AbstractJsonable):
 		return obj.json()
 	if isinstance(obj, Mapping):
@@ -98,6 +78,8 @@ def to_json(obj: JSONABLE) -> JSONOBJ:
 		return [to_json(v) for v in obj]
 	if isinstance(obj, _primitive):
 		return obj
+	if isinstance(obj, Path):
+		return str(obj)
 	raise ValueError(f'Cannot convert object to json: {obj}')
 
 

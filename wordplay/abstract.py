@@ -3,6 +3,25 @@ from omniply import AbstractGame
 
 
 
+class AbstractJsonable:
+	def json(self) -> JSONOBJ:
+		raise NotImplementedError
+
+
+
+class AbstractDescribable(AbstractJsonable):
+	def describe(self) -> DESCRIPTION:
+		raise NotImplementedError
+
+
+	def display(self, level: str = 'single', **kwargs) -> str:
+		"""
+		multi-full | single-full | multi | single | min | None
+		"""
+		raise NotImplementedError
+
+
+
 class AbstractSample(AbstractGame):
 	def gadgetry(self) -> Iterator[AbstractGadget]:
 		'''all vendors except for the batch specific info'''
@@ -69,7 +88,7 @@ class AbstractDataset(AbstractGadget):
 
 
 
-class AbstractSystem(AbstractDataset):
+class AbstractSystem(AbstractDescribable, AbstractDataset):
 	@property
 	def dataset(self):
 		raise NotImplementedError
@@ -104,6 +123,10 @@ class AbstractBenchmark:
 
 
 	def announce(self, system: Optional[AbstractSystem] = None) -> str:
+		raise NotImplementedError
+
+
+	def save(self, name: str, data: JSONABLE) -> Path:
 		raise NotImplementedError
 
 

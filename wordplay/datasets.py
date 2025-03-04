@@ -268,6 +268,10 @@ class SingleMMLU(FileDataset, MultipleChoiceQuestions):
 		data['answer'] = [order[a] for a in data['answer']]
 		return data
 
+	@property
+	def name(self):
+		return f'MMLU-{self.path.stem}'
+
 
 
 @fig.component('gsm8k')

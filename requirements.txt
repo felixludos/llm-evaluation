@@ -14,3 +14,4 @@ openai
 tiktoken
 huggingface-hub
 wandb
+humanize
