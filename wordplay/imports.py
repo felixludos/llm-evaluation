@@ -4,6 +4,7 @@ from omnibelt import load_json, save_json, load_csv, load_yaml, save_yaml, load_
 import omnifig as fig
 from omniply import AbstractGadget#, Selection, Scope
 from omniply.apps.gaps import tool, Context, ToolKit, DictGadget, Table as TableBase
+from omniply.gems import Geologist, gem
 # from omniply.apps import DictGadget
 from omniply.core.abstract import AbstractMutable
 # from omniply.apps.staging import AbstractStaged, Staged, StagedGaggle, AbstractPlan
@@ -17,6 +18,12 @@ from tabulate import tabulate
 from datetime import datetime
 import json, csv, re, random, time
 
+
+class hparam(gem):
+	def from_config(self, cfg: fig.Configuration) -> Any:
+		if self._default is self._no_value:
+			return cfg.pull(self._name)
+		return cfg.pull(self._name, self._default)
 
 
 JSONABLE = Union[str, int, float, bool, None, dict[str, 'JSONABLE'], list['JSONABLE']]

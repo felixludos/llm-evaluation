@@ -143,6 +143,7 @@ class MockEndpoint(Endpoint, name='mock'):
 
 import openai
 
+@fig.component('chatgpt')
 class ChatGPT(Endpoint, name='gpt'):
     # def __init__(self, ident: str = 'gpt-4o', temperature: float = 0.7, top_p: float = 1.0, #seed: int = 1000000007,
     #              frequency_penalty: float = 0., presence_penalty: float = 0., **kwargs):
@@ -171,12 +172,40 @@ class ChatGPT(Endpoint, name='gpt'):
         yield response
 
 
-    def extract_response(self, data: openai.ChatCompletion) -> str:
-        return data.choices[0].message['content']
+    def extract_response(self, resp: openai.ChatCompletion) -> str:
+        return resp.choices[0].message.content
 
 
 
+@fig.component('azure')
+class AzureOpenAI(Endpoint, name='azure'):
+    @fig.silent_config_args('api_key')
+    def __init__(self, ident: str = None, api_key: str = '-', api_version: str = None, api_base: str = None, **kwargs):
+        super().__init__(ident, **kwargs)
+        self.client = AzureOpenAI(
+            api_key=api_key,
+            api_version=api_version,
+            azure_endpoint=api_base,
+        )
 
 
+    def wrap_chat(self, chat: List[Dict[str, str]], model: str = None) -> JSONOBJ:
+        if model is None:
+            model = self.ident
+        return {'messages': chat, 'model': model}
+
+
+    def _send(self, data: JSONOBJ) -> openai.ChatCompletion:
+        response = self.client.chat.completions.create(**data)
+        return response
+
+
+    def _send_no_wait(self, data: JSONOBJ) -> Iterator[openai.ChatCompletion]:
+        response = self.client.chat.completions.create(stream=True, **data)
+        yield response
+
+
+    def extract_response(self, resp: openai.ChatCompletion) -> str:
+        return resp.choices[0].message.content
 
 

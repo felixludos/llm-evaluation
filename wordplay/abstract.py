@@ -71,7 +71,7 @@ class AbstractDataset(AbstractGadget):
 
 class AbstractSystem(AbstractDataset):
 	@property
-	def source(self):
+	def dataset(self):
 		raise NotImplementedError
 
 

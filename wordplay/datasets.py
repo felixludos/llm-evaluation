@@ -2,6 +2,7 @@ from .imports import *
 from omniply.apps import Table
 from omniply.apps.training import Frame
 from .abstract import AbstractDataset, AbstractPlanner, AbstractSample, AbstractSystem
+from .mixins import Describable, DESCRIPTION
 from .errors import NoMoreSamplesError, NoNewSamplesError
 
 
@@ -51,7 +52,7 @@ class SampleInfo(DictGadget):
 
 
 
-class Sample(Context, AbstractSample):
+class Sample(Describable, Context, AbstractSample):
 	_SampleInfo = SampleInfo
 	def __init__(self, info: dict[str, Any], *, plan: AbstractPlanner, allow_draw: bool = True, **kwargs):
 		if isinstance(info, dict):
@@ -61,6 +62,10 @@ class Sample(Context, AbstractSample):
 		self._plan = plan
 		self._allow_draw = allow_draw
 		self.include(info)
+
+
+	def describe(self) -> DESCRIPTION:
+		return {'gadgets': list(self.gadgetry()), **self._info.data}
 
 
 	def gadgetry(self) -> Iterator[AbstractGadget]:
@@ -90,10 +95,10 @@ class Sample(Context, AbstractSample):
 
 
 
-class SimpleSystem(ToolKit, AbstractSystem):
-	def __init__(self, source: AbstractDataset, *gadgets, **kwargs):
-		super().__init__(source, *gadgets, **kwargs)
-		self._source = source
+class SimpleSystem(Describable, ToolKit, AbstractSystem):
+	def __init__(self, dataset: AbstractDataset, *gadgets, **kwargs):
+		super().__init__(dataset, *gadgets, **kwargs)
+		self._dataset = dataset
 		self._gadgets = gadgets
 
 
@@ -102,28 +107,32 @@ class SimpleSystem(ToolKit, AbstractSystem):
 
 
 	@property
-	def source(self):
-		return self._source
+	def dataset(self):
+		return self._dataset
 
 
 	@property
 	def size(self) -> Optional[int]:
-		return self.source.size
+		return self.dataset.size
 
 
 	def iterate(self, *gadgets: AbstractGadget, plan: Optional[AbstractPlanner] = None,
 				shuffle: Optional[bool] = None, allow_draw: bool = True) -> Iterator[AbstractSample]:
-		yield from self.source.iterate(*gadgets, *self.gadgetry(), shuffle=shuffle, allow_draw=allow_draw)
+		yield from self.dataset.iterate(*gadgets, *self.gadgetry(), shuffle=shuffle, allow_draw=allow_draw)
 
 
 	def sample(self, *gadgets: AbstractGadget, shuffle: bool = True, **kwargs) -> AbstractSample:
-		return self.source.sample(*gadgets, *self.gadgetry(), shuffle=shuffle, **kwargs)
+		return self.dataset.sample(*gadgets, *self.gadgetry(), shuffle=shuffle, **kwargs)
+
+
+	def describe(self) -> DESCRIPTION:
+		return {'dataset': self.dataset, 'gadgets': list(self.gadgetry())}
 
 
 
 class System(SimpleSystem):
-	def __init__(self, source: AbstractDataset, env: Dict[str, AbstractGadget], **kwargs):
-		super().__init__(source, *env.values(), **kwargs)
+	def __init__(self, dataset: AbstractDataset, env: Dict[str, AbstractGadget], **kwargs):
+		super().__init__(dataset, *env.values(), **kwargs)
 		self._env = env
 
 
@@ -132,14 +141,18 @@ class System(SimpleSystem):
 
 
 	def announce(self) -> str:
-		tbl = [('dataset', '\n'.join(map(str, self.source.genes())), self.source)]
+		tbl = [('dataset', '\n'.join(map(str, self.dataset.genes())), self.dataset)]
 		for name, gadget in self._env.items():
 			tbl.append((name, '\n'.join(map(str, gadget.genes())), gadget))
 		return tabulate(tbl, tablefmt='fancy_grid')
 
 
+	def describe(self) -> DESCRIPTION:
+		return {'dataset': self.dataset, **self._env}
 
-class Dataset(AbstractDataset):
+
+
+class Dataset(Describable, AbstractDataset):
 	_Planner = Planner
 	_Sample = Sample
 	def iterate(self, *gadgets: AbstractGadget, plan: Optional[AbstractPlanner] = None,
@@ -149,6 +162,15 @@ class Dataset(AbstractDataset):
 		for info in plan.generate():
 			sample = self._Sample(info, plan=plan, allow_draw=allow_draw)
 			yield sample.include(*gadgets, self)
+
+	def display(self, level: str = None, **kwargs) -> str:
+		base = super().display(level=level, **kwargs)
+		assert '(' in base, f'confused: {base!r}'
+		size = self.size
+		if size is not None:
+			name, params = base.split('(', 1)
+			return f'{name}[{self.size}]({params}'
+		return base
 
 
 	def sample(self, *gadgets: AbstractGadget, shuffle: bool = True, **kwargs) -> Sample:
@@ -178,6 +200,10 @@ class FileDataset(TableDataset):
 	@property
 	def path(self) -> Path:
 		return Path(self._path)
+
+
+	def describe(self) -> DESCRIPTION:
+		return {'path': self.path}
 
 
 	def _load_data(self) -> dict[str, list[Any]]:

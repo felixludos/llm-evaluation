@@ -5,8 +5,8 @@ _meta.script_name: run
 
 dataset:
   _type: mmlu/single
-#  path: /clones/mmlu/data/conceptual_physics_dev.csv
-  path: C:/Users/anwan/OneDrive/Khan/research/clones/mmlu/data/conceptual_physics_dev.csv
+  path: ../clones/mmlu/data/conceptual_physics_dev.csv
+#  path: C:/Users/anwan/OneDrive/Khan/research/clones/mmlu/data/conceptual_physics_dev.csv
 
 
 benchmark:

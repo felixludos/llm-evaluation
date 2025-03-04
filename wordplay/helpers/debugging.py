@@ -4,16 +4,17 @@ from .imports import *
 
 @fig.component('randint')
 class RandomAgent(Module):
-	def __init__(self, options: int, seed: int = None, **kwargs):
+	options = hparam()
+	seed = hparam(None)
+
+	def __init__(self, *args, **kwargs):
 		super().__init__(**kwargs)
-		self._options = options
-		self._seed = seed
-		self._rng = random.Random(seed)
+		self._rng = random.Random(self.seed)
 
 
 	@tool('pick')
 	def make_pick(self) -> int:
-		return self._rng.randint(0, self._options)
+		return self._rng.randint(0, self.options)
 
 
 
