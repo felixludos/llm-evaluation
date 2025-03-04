@@ -5,19 +5,19 @@ from .abstract import AbstractSystem, AbstractBenchmark, AbstractDataset, Abstra
 from .datasets import System, Planner, Sample
 from .meters import Meter
 from .util import fixed_width_format_value
+from .mixins import to_json
 from .mixins import Describable, DESCRIPTION
 
 
 
 @fig.component('simple')
-class Benchmark(fig.Configurable, Describable, AbstractBenchmark):
+class BenchmarkBase(fig.Configurable, Describable, AbstractBenchmark):
 	@fig.config_aliases(aggregate='agg')
 	def __init__(self, dataset: AbstractDataset, env: Dict[str, AbstractGadget] = None, *,
-				 log: Optional[Iterable[str]] = None, out_dir: Path = None, aggregate: Iterable[str] = None,
+				 log: Optional[Iterable[str]] = None, out_dir: Path = None, pause_after: Optional[int] = None,
 				 selection: Iterable[str] = None, include_cached: bool = True, project_format: str = '{dataset.name}',
-				 use_wandb: bool = None, show_first: Optional[int] = 1, pause_after: Optional[int] = None,
-				 name_format: str = '{dataset.name}_{now.strftime("%y%m%d-%H%M%S")}', use_pbar: bool = None,
-				 show_metrics: int = 3, **kwargs):
+				 use_wandb: bool = None, show_first: Optional[int] = 1, use_pbar: bool = None, show_metrics: int = 3,
+				 name_format: str = '{dataset.name}_{now.strftime("%y%m%d-%H%M%S")}', **kwargs):
 		if env is None: env = {}
 		if out_dir is not None:
 			out_dir = Path(out_dir)
@@ -43,9 +43,6 @@ class Benchmark(fig.Configurable, Describable, AbstractBenchmark):
 		self._use_pbar = use_pbar or (use_pbar is None and self._run_env != 'cluster')
 		self._pbar = None
 		self._show_metrics = show_metrics
-
-		self._metrics = aggregate or []
-		self._meters = None
 
 		self._use_wandb = use_wandb
 		self._selection = set(selection)
@@ -174,10 +171,20 @@ class Benchmark(fig.Configurable, Describable, AbstractBenchmark):
 				self._log_writer = csv.DictWriter(path.open('a', newline=''), fieldnames=self._log)
 				if not exists_already:
 					self._log_writer.writeheader()
-		if not self._metrics:
-			print(self._no_meters_found_msg)
-		self._meters = {key: self._Meter(window_size=max(1, self.dataset.size / 50)) for key in self._metrics}
+		self._prepare_metrics(system)
 		return system
+
+
+	def _prepare_metrics(self, system: System) -> None:
+		pass
+
+
+	def _step(self, sample: AbstractSample) -> Optional[Dict[str, Union[Meter, float]]]:
+		pass
+
+
+	def _final_results(self, last_sample: Optional[AbstractSample]) -> Optional[Dict[str, Union[Meter, float]]]:
+		pass
 
 
 	_pause_signal = '-- PAUSING {now} for confirmation through WandB ---'
@@ -197,21 +204,19 @@ class Benchmark(fig.Configurable, Describable, AbstractBenchmark):
 		if self._wandb_run is not None:
 			if self._pause_after is not None and self._pause_after == 0:
 				self._pause()
-			if self._show_first is not None and self._show_first >= itr and self._selection is not None:
-				for key in self._selection:
-					sample.grab(key)
 
-		for key, meter in self._meters.items():
-			value = sample[key]
-			if isinstance(value, (float, int)):
-				meter.mete(value)
-		if self._pbar is not None:
+		results = self._step(sample)
+
+		if self._pbar is not None and results:
 			self._pbar.set_description(', '.join(f'{key}={fixed_width_format_value(meter.smooth, 5)}'
-										for (key, meter), _ in zip(self._meters.items(), range(self._show_metrics))) )
+										for (key, meter), _ in zip(results.items(), range(self._show_metrics))) )
 		if self._log is not None and self._log_writer is not None:
 			self._log_writer.writerow({key: sample[key] for key in self._log})
 
 		if self._wandb_run is not None and self._show_first is not None and self._show_first >= itr:
+			if self._selection:
+				for key in self._selection:
+					sample.grab(key)
 			content = {key: self._format_wandb_value(key, sample[key]) for key in sample.cached()
 					   if self._selection is None or key in self._selection}
 			if not self._include_cached and self._selection is not None:
@@ -226,27 +231,54 @@ class Benchmark(fig.Configurable, Describable, AbstractBenchmark):
 
 
 	def _format_wandb_value(self, key: str, value: Any) -> Any:
+		if isinstance(value, Meter):
+			return value.avg
 		return value
 
 
 	def end(self, last_sample: Optional[AbstractSample]) -> JSONOBJ:
 		if self._pbar is not None:
 			self._pbar.close()
-		out = {key: meter.json() for key, meter in self._meters.items()}
+		out = self._final_results(last_sample)
+		json_out = to_json(out)
 		if self._out_dir is not None and len(out):
-			self.save(out, name='summary')
+			self.save(json_out, name='summary')
 		if self._wandb_run is not None:
-			means = {key: meter.avg for key, meter in self._meters.items()}
+			means = {key: self._format_wandb_value(key, value) for key, value in out.items()}
 			if means:
 				self._wandb_run.log(means, step=self._past_iterations)
 			self._wandb_run.finish()
+		return json_out
+
+
+
+@fig.component('generic')
+class SimpleBenchmark(BenchmarkBase):
+	@fig.config_aliases(aggregate='agg')
+	def __init__(self, dataset: AbstractDataset, env: Dict[str, AbstractGadget] = None, *,
+				 aggregate: Iterable[str] = None, **kwargs):
+		super().__init__(dataset=dataset, env=env, **kwargs)
+		self._metrics = aggregate or []
+		self._meters = {}
+
+
+	def _prepare_metrics(self, system: System) -> None:
+		if not self._metrics:
+			print(self._no_meters_found_msg)
+		self._meters = {key: self._Meter(window_size=max(1, self.dataset.size / 50)) for key in self._metrics}
+
+
+	def _step(self, sample: AbstractSample) -> Optional[Dict[str, Union[Meter, float]]]:
+		for key, meter in self._meters.items():
+			value = sample[key]
+			if isinstance(value, (float, int)):
+				meter.mete(value)
+		return self._meters
+
+
+	def _final_results(self, last_sample: Optional[AbstractSample]) -> Optional[Dict[str, Union[Meter, float]]]:
+		out = {key: meter.json() for key, meter in self._meters.items()}
 		return out
-
-
-
-
-
-
 
 
 

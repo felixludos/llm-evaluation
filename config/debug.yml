@@ -3,7 +3,6 @@
 _meta.script_name: run
 
 out-dir: local_tasks/
-#wandb-dir: local_tasks/
 
 dataset:
   _type: mmlu/single
@@ -12,8 +11,7 @@ dataset:
 
 
 benchmark:
-  _type: simple
-#  _mod.wandb: yes
+  _type: generic
 
 
 agg:

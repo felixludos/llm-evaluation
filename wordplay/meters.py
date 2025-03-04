@@ -1,9 +1,10 @@
 from .imports import *
 import math
+from .abstract import AbstractJsonable
 
 
 
-class Meter:
+class Meter(AbstractJsonable):
 	def __init__(self, alpha: float = None, window_size: float = None, **kwargs):
 		assert alpha is None or window_size is None, 'cannot specify both alpha and window_size'
 		if window_size is not None:
