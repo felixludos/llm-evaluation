@@ -131,9 +131,11 @@ class System(SimpleSystem):
 		yield from self._env.values()
 
 
-
 	def announce(self) -> str:
-		return tabulate([('dataset', self.source), *self._env.items()], tablefmt='fancy_grid')
+		tbl = [('dataset', '\n'.join(map(str, self.source.genes())), self.source)]
+		for name, gadget in self._env.items():
+			tbl.append((name, '\n'.join(map(str, gadget.genes())), gadget))
+		return tabulate(tbl, tablefmt='fancy_grid')
 
 
 

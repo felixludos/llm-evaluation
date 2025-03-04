@@ -1,6 +1,7 @@
 from .imports import *
 from .abstract import AbstractBenchmark
 
+from pprint import pprint
 
 
 @fig.script('run')
@@ -14,7 +15,7 @@ def run_benchmark(cfg: fig.Configuration):
 
 	out = benchmark.run(system)
 
-	print(out)
+	print(pprint(out))
 
 
 
