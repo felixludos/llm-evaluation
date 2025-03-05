@@ -74,12 +74,12 @@ def to_json(obj: Any) -> JSONABLE:
 		return obj.json()
 	if isinstance(obj, Mapping):
 		return {k: to_json(v) for k, v in obj.items()}
-	if isinstance(obj, Iterable):
-		return [to_json(v) for v in obj]
 	if isinstance(obj, _primitive):
 		return obj
 	if isinstance(obj, Path):
 		return str(obj)
+	if isinstance(obj, Iterable):
+		return [to_json(v) for v in obj]
 	raise ValueError(f'Cannot convert object to json: {obj}')
 
 

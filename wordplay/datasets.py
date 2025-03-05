@@ -1,8 +1,11 @@
 from .imports import *
+import os
 from omniply.apps import Table
 from omniply.apps.training import Frame
 from .abstract import AbstractDataset, AbstractPlanner, AbstractSample, AbstractSystem
 from .mixins import Describable, DESCRIPTION
+from .util import as_path
+from .modules import Module, hparam
 from .errors import NoMoreSamplesError, NoNewSamplesError
 
 
@@ -152,7 +155,7 @@ class System(SimpleSystem):
 
 
 
-class Dataset(Describable, AbstractDataset):
+class DatasetBase(Describable, AbstractDataset):
 	_Planner = Planner
 	_Sample = Sample
 	def iterate(self, *gadgets: AbstractGadget, plan: Optional[AbstractPlanner] = None,
@@ -178,8 +181,25 @@ class Dataset(Describable, AbstractDataset):
 
 
 
+class Dataset(Module, DatasetBase):
+	"""
+	The base class for datasets which also offers all the features of Module.
+
+	Required:
+	- size
+	- name
+
+	Optional:
+	- load
+	- describe
+
+	"""
+	pass
+
+
+
 @fig.component('table')
-class TableDataset(fig.Configurable, Table, Dataset):
+class TableDataset(fig.Configurable, Table, DatasetBase):
 	def __init__(self, data: dict[str, list[Any]] = None, **kwargs):
 		super().__init__(data_in_columns=data, **kwargs)
 
@@ -223,7 +243,7 @@ class FileDataset(TableDataset):
 			with path.open('r') as f:
 				rows = [line.strip() for line in f]
 		elif path.suffix == '.csv':
-			with path.open('r') as f:
+			with path.open('r', encoding='utf-8') as f:
 				rows = list(csv.DictReader(f, fieldnames=columns))
 
 		elif path.suffix == '.json':
@@ -250,7 +270,7 @@ class FileDataset(TableDataset):
 
 
 
-class DataCollection(Dataset):
+class DataCollection(DatasetBase):
 	def __init__(self, datasets: Iterable[AbstractDataset] = None, index_key: str = 'index', **kwargs):
 		if datasets is None:
 			datasets = []
@@ -300,53 +320,8 @@ class DataCollection(Dataset):
 
 
 
-class MultipleChoiceQuestions(Dataset): # TODO: maybe add support for answer space
+class MultipleChoiceQuestions(DatasetBase): # TODO: maybe add support for answer space
 	pass
-
-
-
-@fig.component('mmlu/single')
-class SingleMMLU(FileDataset, MultipleChoiceQuestions):
-	_columns = ('question', 'A', 'B', 'C', 'D', 'answer') # columns of the raw csv files
-	def _load_data(self) -> dict[str, list[Any]]:
-		data = super()._load_data()
-		choices = list(zip(data['A'], data['B'], data['C'], data['D']))
-		del data['A'], data['B'], data['C'], data['D']
-		data['choices'] = choices
-		self._columns = ('question', 'choices', 'answer')
-		order = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
-		data['answer'] = [order[a] for a in data['answer']]
-		return data
-
-	@property
-	def name(self):
-		return f'MMLU-{self.path.stem}'
-
-
-
-@fig.component('gsm8k')
-class GSM8k(FileDataset):
-	def _load_data(self) -> dict[str, list[Any]]:
-
-		data = super()._load_data()
-
-		full = data['answer']
-
-		expr = [re.findall(r'<<.*?>>', line) for line in full]
-		expr = [[e[2:-2] for e in line] for line in expr]
-
-		full = [re.sub(r'<<.*?>>', '', line) for line in full]
-
-		rationale, answer = zip(*[line.split('\n####') for line in full])
-		rationale = [line.strip() for line in rationale]
-		answer = [line.strip() for line in answer]
-
-		data['rationale'] = rationale
-		data['answer'] = answer
-		data['expr'] = expr
-
-		return data
-
 
 
 

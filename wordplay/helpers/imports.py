@@ -1,2 +1,2 @@
 from ..imports import *
-from ..modules import Module
+from ..modules import Module, hparam

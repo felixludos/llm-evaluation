@@ -2,22 +2,23 @@ import csv
 
 from .imports import *
 from .abstract import AbstractSystem, AbstractBenchmark, AbstractDataset, AbstractSample
-from .datasets import System, Planner, Sample
+from .datasets import System, Planner, Sample, DataCollection
 from .meters import Meter
+from .modules import Hparamed
 from .util import fixed_width_format_value
-from .mixins import to_json
-from .mixins import Describable, DESCRIPTION
+from .mixins import to_json, Describable, DESCRIPTION
 
 
 
 @fig.component('simple')
-class BenchmarkBase(fig.Configurable, Describable, AbstractBenchmark):
+class BenchmarkBase(Hparamed, Describable, AbstractBenchmark):
 	@fig.config_aliases(aggregate='agg')
-	def __init__(self, dataset: AbstractDataset, env: Dict[str, AbstractGadget] = None, *,
+	def __init__(self, dataset: AbstractDataset, *, env: Dict[str, AbstractGadget] = None,
 				 log: Optional[Iterable[str]] = None, out_dir: Path = None, pause_after: Optional[int] = None,
 				 selection: Iterable[str] = None, include_cached: bool = True, project_format: str = '{dataset.name}',
 				 use_wandb: bool = None, show_first: Optional[int] = 1, use_pbar: bool = None, show_metrics: int = 3,
-				 name_format: str = '{dataset.name}_{now.strftime("%y%m%d-%H%M%S")}', **kwargs):
+				 name_format: str = '{dataset.name}_{now.strftime("%y%m%d-%H%M%S")}', select_log: bool = None,
+				 **kwargs):
 		if env is None: env = {}
 		if out_dir is not None:
 			out_dir = Path(out_dir)
@@ -37,7 +38,7 @@ class BenchmarkBase(fig.Configurable, Describable, AbstractBenchmark):
 		self._name_format = name_format
 		self._now = datetime.now()
 		self._out_dir = out_dir
-		self._log = None if log is None else tuple(log)
+		self._log = None if log is None else list(log)
 		self._log_writer = None
 		self._run_env = where_am_i()
 		self._use_pbar = use_pbar or (use_pbar is None and self._run_env != 'cluster')
@@ -45,7 +46,7 @@ class BenchmarkBase(fig.Configurable, Describable, AbstractBenchmark):
 		self._show_metrics = show_metrics
 
 		self._use_wandb = use_wandb
-		self._selection = set(selection)
+		self._selection = set(selection) if selection is not None and not select_log else self._log
 		self._include_cached = include_cached
 		self._wandb_run = None
 		self._pause_after = pause_after
@@ -141,7 +142,6 @@ class BenchmarkBase(fig.Configurable, Describable, AbstractBenchmark):
 
 
 	_Meter = Meter
-	_no_meters_found_msg = 'WARNING: No metrics have been specified'
 	_System = System
 	def prepare(self, **kwargs) -> System:
 		self._past_iterations = 0
@@ -255,13 +255,14 @@ class BenchmarkBase(fig.Configurable, Describable, AbstractBenchmark):
 @fig.component('generic')
 class SimpleBenchmark(BenchmarkBase):
 	@fig.config_aliases(aggregate='agg')
-	def __init__(self, dataset: AbstractDataset, env: Dict[str, AbstractGadget] = None, *,
+	def __init__(self, dataset: AbstractDataset, *, env: Dict[str, AbstractGadget] = None,
 				 aggregate: Iterable[str] = None, **kwargs):
 		super().__init__(dataset=dataset, env=env, **kwargs)
 		self._metrics = aggregate or []
 		self._meters = {}
 
 
+	_no_meters_found_msg = 'WARNING: No metrics have been specified'
 	def _prepare_metrics(self, system: System) -> None:
 		if not self._metrics:
 			print(self._no_meters_found_msg)
@@ -279,14 +280,6 @@ class SimpleBenchmark(BenchmarkBase):
 	def _final_results(self, last_sample: Optional[AbstractSample]) -> Optional[Dict[str, Union[Meter, float]]]:
 		out = {key: meter.json() for key, meter in self._meters.items()}
 		return out
-
-
-
-class MMLU(BenchmarkBase):
-
-
-	pass
-
 
 
 

@@ -19,13 +19,6 @@ from tabulate import tabulate
 import json, csv, re, random, time, tqdm
 
 
-class hparam(gem):
-	def from_config(self, cfg: fig.Configuration) -> Any:
-		if self._default is self._no_value:
-			return cfg.pull(self._name)
-		return cfg.pull(self._name, self._default)
-
-
 JSONABLE = Union[str, int, float, bool, None, dict[str, 'JSONABLE'], list['JSONABLE']]
 JSONOBJ = dict[str, JSONABLE]
 

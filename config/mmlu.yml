@@ -1,0 +1,10 @@
+
+
+benchmark:
+  _type: mmlu
+
+
+log:
+  - index
+  - pick
+  - correct

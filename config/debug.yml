@@ -2,28 +2,21 @@
 
 _meta.script_name: run
 
+_base: [mmlu]
+
+dataroot: ~/workspace/local_data/MMLU
+
+topic: health
+
+split: val
+
+
 out-dir: local_tasks/
 
-dataset:
-  _type: mmlu/single
-  path: ../clones/mmlu/data/conceptual_physics_dev.csv
-#  path: C:/Users/anwan/OneDrive/Khan/research/clones/mmlu/data/conceptual_physics_dev.csv
 
-
-benchmark:
-  _type: generic
-
-
-agg:
-  - correct
-
-log:
-  - index
-  - question
-  - pick
-  - correct
-
-selection: <>log
+env.agent:
+  _type: randint
+  options: 4
 
 env.score:
   _type: equals
@@ -33,10 +26,27 @@ env.score:
     isequal: correct
 
 
-env.agent:
-  _type: randint
-  options: 4
-
+#dataset:
+#  _type: mmlu/single
+#  path: ../clones/mmlu/data/conceptual_physics_dev.csv
+##  path: C:/Users/anwan/OneDrive/Khan/research/clones/mmlu/data/conceptual_physics_dev.csv
+#
+#
+#benchmark:
+#  _type: generic
+#
+#
+#agg:
+#  - correct
+#
+#log:
+#  - index
+#  - question
+#  - pick
+#  - correct
+#
+#selection: <>log
+#
 
 
 

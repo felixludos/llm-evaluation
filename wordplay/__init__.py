@@ -19,3 +19,4 @@ from . import interactions
 from . import benchmarks
 from .op import run_benchmark
 from . import helpers
+from . import community

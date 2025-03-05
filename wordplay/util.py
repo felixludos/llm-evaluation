@@ -3,6 +3,9 @@ from .imports import *
 __all__ = ['human_size', 'fixed_width_format_positive', 'fixed_width_format_value', 'display_json']
 
 
+def as_path(path: str) -> Path:
+    return Path(path).expanduser().resolve()
+
 
 def human_size(size: int):
     return naturalsize(size, gnu=True, format='%.0f').replace('G', 'M').replace('T', 'B')
