@@ -77,6 +77,10 @@ class AbstractDataset(AbstractGadget):
 		raise NotImplementedError
 
 
+	def load(self):
+		pass
+
+
 	def iterate(self, *gadgets: AbstractGadget, plan: AbstractPlanner = None,
 				shuffle: Optional[bool] = None, allow_draw: bool = True) -> Iterator[AbstractSample]:
 		raise NotImplementedError

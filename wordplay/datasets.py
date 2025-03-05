@@ -179,7 +179,7 @@ class Dataset(Describable, AbstractDataset):
 
 
 @fig.component('table')
-class TableDataset(fig.Configurable, Dataset, Table):
+class TableDataset(fig.Configurable, Table, Dataset):
 	def __init__(self, data: dict[str, list[Any]] = None, **kwargs):
 		super().__init__(data_in_columns=data, **kwargs)
 
@@ -247,6 +247,56 @@ class FileDataset(TableDataset):
 			rows = [{default_text_key: row} for row in rows]
 
 		return rows
+
+
+
+class DataCollection(Dataset):
+	def __init__(self, datasets: Iterable[AbstractDataset] = None, index_key: str = 'index', **kwargs):
+		if datasets is None:
+			datasets = []
+		super().__init__(**kwargs)
+		self._datasets = datasets
+		self._index_key = index_key
+		self._indices = None
+		self._total = None
+
+
+	@property
+	def size(self):
+		return self._total
+
+
+	def gizmos(self) -> Iterator[str]:
+		yield from self._datasets[0].gizmos()
+
+
+	def load(self):
+		for dataset in self._datasets:
+			dataset.load()
+		gizmos = tuple(self.gizmos())
+		for i, dataset in enumerate(self._datasets):
+			if tuple(dataset.gizmos()) != gizmos:
+				raise ValueError(f'Inconsistent gizmos for dataset {i}: {dataset}')
+		import numpy as np
+		self._indices = np.array([dataset.size for dataset in self._datasets]).cumsum() - 1
+		self._total = self._indices[-1] + 1
+
+
+	def genes(self, gizmo: str = None) -> Iterator['AbstractGene']:
+		for gene in self._datasets[0].genes(gizmo=gizmo):
+			if self._index_key not in gene.parents:
+				gene.parents = (self._index_key,) + gene.parents
+			yield gene
+
+
+	def grab_from(self, ctx: 'AbstractGame', gizmo: str) -> Any:
+		index = ctx[self._index_key]
+		dataset_index = self._indices.searchsorted(index, side='left')
+		sample_index = index - self._indices[dataset_index] - 1 if dataset_index > 0 else index
+		ctx[self._index_key] = sample_index
+		out = self._datasets[dataset_index].grab_from(ctx, gizmo)
+		ctx[self._index_key] = index
+		return out
 
 
 

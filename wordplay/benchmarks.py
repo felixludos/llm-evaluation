@@ -282,7 +282,10 @@ class SimpleBenchmark(BenchmarkBase):
 
 
 
+class MMLU(BenchmarkBase):
 
+
+	pass
 
 
 
