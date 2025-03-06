@@ -1,3 +1,5 @@
+from collections import deque
+
 from .imports import *
 import os
 
@@ -69,7 +71,7 @@ class MMLU_Dataset(Dataset):
 	def to_subject_index(self, index: int) -> Tuple[str, int]:
 		subject_index = self._subject_indices.searchsorted(index, side='left')
 		subject = self.subjects[subject_index]
-		sample_index = index - self._subject_indices[subject_index] - 1 if subject_index > 0 else index
+		sample_index = index - self._subject_indices[subject_index-1] - 1 if subject_index > 0 else index
 		return subject, sample_index
 
 
@@ -122,15 +124,20 @@ class MMLU(BenchmarkBase):
 	def _prepare_metrics(self, system: System) -> None:
 		self._meters = {subject: self._Meter(window_size=max(1, self.dataset.size / 50))
 						for subject in self.dataset.subjects}
+		self._current_subjects = deque(maxlen=2)
 
 
 	def _step(self, sample: 'Sample') -> Optional[Dict[str, Union[Meter, float]]]:
-		self._meters[sample[self._subject_key]].mete(sample[self._correct_key])
+		subject = sample[self._subject_key]
+		if subject not in self._current_subjects:
+			self._current_subjects.append(subject)
+		self._meters[subject].mete(sample[self._correct_key])
+		return {_mmlu_subject_titles[sub]: self._meters[sub] for sub in self._current_subjects}
 
 
 	def _final_results(self, last_sample: Optional[AbstractSample]) -> Optional[Dict[str, Union[Meter, float]]]:
-		topics = {topic: tuple(set(_mmlu_subjects(topic, only_subjects=True)))
-					for topic in set(_mmlu_subjects(self.topic, only_subjects=False))}
+		topics = {topic: tuple(_mmlu_subjects(topic, only_subjects=True))
+					for topic in _mmlu_subjects(self.topic, only_subjects=False)}
 
 		totals = {topic: self._Meter() for topic in topics}
 

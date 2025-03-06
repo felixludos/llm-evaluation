@@ -17,8 +17,7 @@ class BenchmarkBase(Hparamed, Describable, AbstractBenchmark):
 				 log: Optional[Iterable[str]] = None, out_dir: Path = None, pause_after: Optional[int] = None,
 				 selection: Iterable[str] = None, include_cached: bool = True, project_format: str = '{dataset.name}',
 				 use_wandb: bool = None, show_first: Optional[int] = 1, use_pbar: bool = None, show_metrics: int = 3,
-				 name_format: str = '{dataset.name}_{now.strftime("%y%m%d-%H%M%S")}', select_log: bool = None,
-				 **kwargs):
+				 name_format: str = '{dataset.name}_{now.strftime("%y%m%d-%H%M%S")}', **kwargs):
 		if env is None: env = {}
 		if out_dir is not None:
 			out_dir = Path(out_dir)
@@ -29,8 +28,6 @@ class BenchmarkBase(Hparamed, Describable, AbstractBenchmark):
 				use_wandb = False
 			else:
 				use_wandb = True
-		if selection is None:
-			selection = ()
 		super().__init__(**kwargs)
 		self._dataset = dataset
 		self._env = env
@@ -46,16 +43,18 @@ class BenchmarkBase(Hparamed, Describable, AbstractBenchmark):
 		self._show_metrics = show_metrics
 
 		self._use_wandb = use_wandb
-		self._selection = set(selection) if selection is not None and not select_log else self._log
+		self._selection = None if selection is None else list(selection)
 		self._include_cached = include_cached
 		self._wandb_run = None
 		self._pause_after = pause_after
+		self._check_confirmation = None
 		self._show_first = show_first
 		self._project_format = project_format
 
 
 	def settings(self, system: AbstractSystem = None) -> JSONOBJ:
-		data = {'datetime': self._now.isoformat(), 'name': self.name}
+		data = {'datetime': self._now.isoformat(), 'name': self.name,
+				'show-first': self._show_first, 'pause-after': self._pause_after}
 		if system is not None:
 			data.update(system.json())
 		return data
@@ -154,7 +153,8 @@ class BenchmarkBase(Hparamed, Describable, AbstractBenchmark):
 			import wandb
 			self._wandb_run = wandb.init(project=self.project_name, config=self.settings(system), dir=self._out_dir)
 			if self._pause_after is not None:
-				self._wandb_run.config.confirmed = False
+				addr = f'{self._wandb_run.entity}/{self._wandb_run.project}/{self._wandb_run.id}'
+				self._check_confirmation = lambda: 'confirm' in wandb.apis.public.Api().run(addr).tags
 		root = self.root
 		if root is not None:
 			with root.joinpath('omnifig.yml').open('w', encoding='utf-8') as file:
@@ -168,7 +168,8 @@ class BenchmarkBase(Hparamed, Describable, AbstractBenchmark):
 					fields = check.fieldnames
 					if fields != self._log:
 						raise ValueError('log files do not match')
-				self._log_writer = csv.DictWriter(path.open('a', newline=''), fieldnames=self._log)
+				self._log_writer = csv.DictWriter(path.open('a', encoding='utf-8', newline=''),
+												  fieldnames=self._log)
 				if not exists_already:
 					self._log_writer.writeheader()
 		self._prepare_metrics(system)
@@ -187,15 +188,24 @@ class BenchmarkBase(Hparamed, Describable, AbstractBenchmark):
 		pass
 
 
-	_pause_signal = '-- PAUSING {now} for confirmation through WandB ---'
+	_pause_signal = '--- PAUSING {now} for confirmation through WandB ---'
+	_confirm_signal = '--- CONTINUING {now} after having received confirmation on WandB ---'
 	def _pause(self):
 		if self._pause_signal is not None:
+			if self._pbar is not None:
+				print()
 			print(self._pause_signal.format(now=datetime.now().strftime("%d %b %Y %H:%M:%S")))
 			self._pause_signal = None
-			self._wandb_run.alert('Pausing', 'Change "confirm" in the config to true to continue.')
-		while self._wandb_run is not None and not self._wandb_run.config.confirmed:
-			self._wandb_run.config.update()
+
+		self._wandb_run.alert('Pausing', 'Change add "confirm" to the tags to continue this job.')
+		while self._check_confirmation is not None and not self._check_confirmation():
 			time.sleep(5)
+		self._wandb_run.alert('Continuing', 'Received "confirm" signal, and now continuing.')
+
+		if self._confirm_signal is not None:
+			if self._pbar is not None:
+				print()
+			print(self._confirm_signal.format(now=datetime.now().strftime("%d %b %Y %H:%M:%S")))
 		self._pause_after = None
 
 
@@ -246,7 +256,8 @@ class BenchmarkBase(Hparamed, Describable, AbstractBenchmark):
 		if self._wandb_run is not None:
 			means = {key: self._format_wandb_value(key, value) for key, value in out.items()}
 			if means:
-				self._wandb_run.log(means, step=self._past_iterations)
+				self._wandb_run.summary.update(means)
+				# self._wandb_run.log(means, step=self._past_iterations)
 			self._wandb_run.finish()
 		return json_out
 

@@ -1,10 +1,15 @@
 
+topic: full
 
-benchmark:
+split: val # dev, test
+
+
+benchmark: # question, choices, answer
   _type: mmlu
 
+  index-key: index
+  correct-key: correct
 
-log:
-  - index
-  - pick
-  - correct
+#  app.question: question
+
+

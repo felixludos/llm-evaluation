@@ -14,7 +14,7 @@ class RandomAgent(Module):
 
 	@tool('pick')
 	def make_pick(self) -> int:
-		return self._rng.randint(0, self.options)
+		return self._rng.randint(0, self.options-1)
 
 
 

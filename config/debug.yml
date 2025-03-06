@@ -10,13 +10,21 @@ topic: health
 
 split: val
 
+log:
+  question: yes
+  pick: yes
+  answer: yes
+
 
 out-dir: local_tasks/
 
+show-first: 1
+pause-after: 1
 
 env.agent:
   _type: randint
   options: 4
+  seed: 11
 
 env.score:
   _type: equals
